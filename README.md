@@ -71,7 +71,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 dotnet build --configuration Release
 ```
 
-Copy `bin/Release/net8.0/Jellyfin.Plugin.TranscodeNag.dll` into a versioned plugin folder, then restart Jellyfin.
+Copy `bin/Release/net10.0/Jellyfin.Plugin.TranscodeNag.dll` into a versioned plugin folder, then restart Jellyfin.
 
 ## Configuration
 
