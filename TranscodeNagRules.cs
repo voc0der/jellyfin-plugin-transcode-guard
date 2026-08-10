@@ -59,21 +59,57 @@ internal static class TranscodeNagRules
         return false;
     }
 
-    internal static bool IsClientAllowed(string? clientName, PluginConfiguration config)
+    internal static bool IsClientAllowed(string? clientName, string[]? includedPatterns, string[]? excludedPatterns)
     {
-        ArgumentNullException.ThrowIfNull(config);
-
-        if (MatchesConfiguredClientPatterns(clientName, config.ExcludedClientPatterns))
+        if (MatchesConfiguredClientPatterns(clientName, excludedPatterns))
         {
             return false;
         }
 
-        if (!HasConfiguredClientPatterns(config.IncludedClientPatterns))
+        if (!HasConfiguredClientPatterns(includedPatterns))
         {
             return true;
         }
 
-        return MatchesConfiguredClientPatterns(clientName, config.IncludedClientPatterns);
+        return MatchesConfiguredClientPatterns(clientName, includedPatterns);
+    }
+
+    internal static bool IsClientAllowed(string? clientName, PluginConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        return IsClientAllowed(clientName, config.IncludedClientPatterns, config.ExcludedClientPatterns);
+    }
+
+    internal static bool IsMotdClientAllowed(string? clientName, PluginConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        return IsClientAllowed(clientName, config.MotdIncludedClientPatterns, config.MotdExcludedClientPatterns);
+    }
+
+    internal static bool IsUserExcluded(Guid userId, string[]? excludedUserIds)
+    {
+        if (userId == Guid.Empty || excludedUserIds == null || excludedUserIds.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var excludedUserId in excludedUserIds)
+        {
+            if (string.IsNullOrWhiteSpace(excludedUserId))
+            {
+                continue;
+            }
+
+            // Accept both "N" (Jellyfin's wire format) and dashed GUIDs so hand-edited configs still work.
+            if (Guid.TryParse(excludedUserId.Trim(), out var parsedUserId) && parsedUserId == userId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal static bool IsLiveTvItem(BaseItemDto? item)

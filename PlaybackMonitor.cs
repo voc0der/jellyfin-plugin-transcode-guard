@@ -23,16 +23,25 @@ public class PlaybackMonitor : IHostedService
     private readonly TranscodeEventStore _eventStore;
     private readonly HashSet<string> _naggedPlaybacks = new();
 
+    // Notification state is tied to the SessionInfo instance rather than its ID. Jellyfin derives
+    // session IDs from client/device identifiers, so a later session can reuse the same ID.
+    private readonly HashSet<SessionInfo> _motdSentSessions = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<SessionInfo> _sessionNotificationsInProgress = new(ReferenceEqualityComparer.Instance);
+    private readonly object _sessionNotificationLock = new();
+
     // "Open Jellyfin" detection for long-lived sessions:
     // We poll session activity timestamps (via reflection) and treat a large activity jump as a new "open".
     // This keeps behavior compatible across Jellyfin builds even if the SessionInfo property name changes.
-    private readonly Dictionary<string, DateTime> _sessionLastActivityUtc = new();
+    private readonly Dictionary<SessionInfo, DateTime> _sessionLastActivityUtc = new(ReferenceEqualityComparer.Instance);
     private readonly object _sessionLastActivityLock = new();
     private Timer? _sessionPollTimer;
 
     // If a session goes idle for at least this long and then becomes active again,
     // treat it as the user "opening" Jellyfin again.
     private static readonly TimeSpan OpenIdleThreshold = TimeSpan.FromMinutes(10);
+
+    // Upper bound on how long the login nag waits behind a freshly sent MOTD.
+    private const int MaxMotdFollowUpDelayMs = 30000;
 
     public PlaybackMonitor(
         ISessionManager sessionManager,
@@ -49,9 +58,10 @@ public class PlaybackMonitor : IHostedService
     {
         _sessionManager.PlaybackStart += OnPlaybackStart;
         _sessionManager.PlaybackStopped += OnPlaybackStopped;
-        _sessionManager.SessionStarted += OnSessionStarted;
+        _sessionManager.SessionControllerConnected += OnSessionControllerConnected;
+        _sessionManager.SessionEnded += OnSessionEnded;
         // Polling is used ONLY to catch re-opens of existing sessions.
-        // (SessionStarted covers fresh sessions.)
+        // (SessionControllerConnected covers fresh sessions once messages can be delivered.)
         _sessionPollTimer = new Timer(PollSessionsForReopen, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30));
         _logger.LogInformation("PlaybackMonitor started - listening for playback and session events");
         return Task.CompletedTask;
@@ -61,7 +71,8 @@ public class PlaybackMonitor : IHostedService
     {
         _sessionManager.PlaybackStart -= OnPlaybackStart;
         _sessionManager.PlaybackStopped -= OnPlaybackStopped;
-        _sessionManager.SessionStarted -= OnSessionStarted;
+        _sessionManager.SessionControllerConnected -= OnSessionControllerConnected;
+        _sessionManager.SessionEnded -= OnSessionEnded;
         _sessionPollTimer?.Dispose();
         _logger.LogInformation("PlaybackMonitor stopped");
         return Task.CompletedTask;
@@ -81,7 +92,7 @@ public class PlaybackMonitor : IHostedService
         }
 
         // If we can't read a last-activity timestamp, polling can't safely infer "reopen".
-        // In that case, SessionStarted still works for fresh sessions.
+        // In that case, the controller-connected event still works for fresh sessions.
         foreach (var session in _sessionManager.Sessions)
         {
             if (session.Id == null || session.UserId == Guid.Empty)
@@ -95,12 +106,11 @@ public class PlaybackMonitor : IHostedService
                 continue;
             }
 
-            var sessionId = session.Id;
             var shouldTreatAsOpen = false;
 
             lock (_sessionLastActivityLock)
             {
-                if (_sessionLastActivityUtc.TryGetValue(sessionId, out var prev))
+                if (_sessionLastActivityUtc.TryGetValue(session, out var prev))
                 {
                     // If the session jumped forward by a lot, consider it a "re-open".
                     if (lastActivity.Value > prev && (lastActivity.Value - prev) >= OpenIdleThreshold)
@@ -108,18 +118,28 @@ public class PlaybackMonitor : IHostedService
                         shouldTreatAsOpen = true;
                     }
 
-                    _sessionLastActivityUtc[sessionId] = lastActivity.Value;
+                    _sessionLastActivityUtc[session] = lastActivity.Value;
                 }
                 else
                 {
                     // First time seeing this session in the poller - treat as open.
-                    _sessionLastActivityUtc[sessionId] = lastActivity.Value;
+                    _sessionLastActivityUtc[session] = lastActivity.Value;
                     shouldTreatAsOpen = true;
                 }
             }
 
             if (shouldTreatAsOpen)
             {
+                lock (_sessionNotificationLock)
+                {
+                    // A fresh-session notification may be waiting for the MOTD to expire.
+                    // Let that sequence deliver the login nag so polling cannot overtake it.
+                    if (_sessionNotificationsInProgress.Contains(session))
+                    {
+                        continue;
+                    }
+                }
+
                 _ = MaybeSendLoginOrOpenNagAsync(session, config);
             }
         }
@@ -221,8 +241,10 @@ public class PlaybackMonitor : IHostedService
 
                 if (!_naggedPlaybacks.Contains(playbackKey))
                 {
-                    await SendNagMessageAsync(session, config).ConfigureAwait(false);
-                    _naggedPlaybacks.Add(playbackKey);
+                    if (await SendNagMessageAsync(session, config).ConfigureAwait(false))
+                    {
+                        _naggedPlaybacks.Add(playbackKey);
+                    }
                 }
             }
         }
@@ -239,23 +261,6 @@ public class PlaybackMonitor : IHostedService
             var playbackKey = $"{e.Session.Id}_{e.Item.Id}";
             _naggedPlaybacks.Remove(playbackKey);
         }
-    }
-
-    private bool IsUserExcluded(Guid? userId)
-    {
-        if (userId == null || Plugin.Instance == null)
-        {
-            return false;
-        }
-
-        var config = Plugin.Instance.Configuration;
-        if (config.ExcludedUserIds == null || config.ExcludedUserIds.Length == 0)
-        {
-            return false;
-        }
-
-        var userIdString = userId.Value.ToString("N");
-        return Array.IndexOf(config.ExcludedUserIds, userIdString) >= 0;
     }
 
     private bool IsItemAllowed(SessionInfo session, Configuration.PluginConfiguration config, string context)
@@ -330,15 +335,15 @@ public class PlaybackMonitor : IHostedService
         return config.NagMessage;
     }
 
-    private async Task SendNagMessageAsync(SessionInfo session, Configuration.PluginConfiguration config)
+    private async Task<bool> SendNagMessageAsync(SessionInfo session, Configuration.PluginConfiguration config)
     {
         if (session.Id == null)
         {
-            return;
+            return false;
         }
 
         // Check if user is excluded from nag messages
-        if (IsUserExcluded(session.UserId))
+        if (TranscodeNagRules.IsUserExcluded(session.UserId, config.ExcludedUserIds))
         {
             if (config.EnableLogging)
             {
@@ -347,12 +352,12 @@ public class PlaybackMonitor : IHostedService
                     session.UserId,
                     session.UserName ?? "Unknown");
             }
-            return;
+            return false;
         }
 
         var transcodeReasons = session.TranscodingInfo?.TranscodeReasons.ToString() ?? "Unknown";
 
-        await SendMessageCommandWithDiagnosticsAsync(
+        return await SendMessageCommandWithDiagnosticsAsync(
             session,
             config,
             new MessageCommand
@@ -378,6 +383,14 @@ public class PlaybackMonitor : IHostedService
         }
 
         LogMessageDeliveryDiagnostics(session, config, context, detail);
+
+        // Jellyfin treats sending to an empty controller collection as a successful no-op.
+        // Do not report or persist that as a delivered message.
+        var (_, activeControllerCount, _) = GetSessionControllerStats(session);
+        if (activeControllerCount == 0)
+        {
+            return false;
+        }
 
         try
         {
@@ -575,39 +588,190 @@ public class PlaybackMonitor : IHostedService
         }
     }
 
-    private async void OnSessionStarted(object? sender, SessionEventArgs e)
+    private async void OnSessionControllerConnected(object? sender, SessionEventArgs e)
     {
-        if (Plugin.Instance == null || e.SessionInfo?.UserId == null)
+        if (Plugin.Instance == null
+            || e.SessionInfo is not { Id: not null } session
+            || session.UserId == Guid.Empty)
         {
             return;
         }
 
         var config = Plugin.Instance.Configuration;
 
-        if (!config.EnableLoginNag)
+        if (!config.EnableLoginNag && !config.EnableMotd)
         {
             return;
         }
 
-        // Wait a moment for session to fully initialize
-        await Task.Delay(2000).ConfigureAwait(false);
+        // More than one controller can connect to a session at nearly the same time. Run one
+        // notification sequence at a time so the login nag cannot overtake a pending MOTD.
+        lock (_sessionNotificationLock)
+        {
+            if (!_sessionNotificationsInProgress.Add(session))
+            {
+                return;
+            }
+        }
+
+        // Seed the reopen tracker now. Otherwise its first poll can classify this fresh session
+        // as a reopen and send the login nag while the MOTD is still visible.
+        var lastActivity = TryGetSessionLastActivityUtc(session);
+        if (lastActivity.HasValue)
+        {
+            lock (_sessionLastActivityLock)
+            {
+                _sessionLastActivityUtc[session] = lastActivity.Value;
+            }
+        }
 
         try
         {
-            await MaybeSendLoginOrOpenNagAsync(e.SessionInfo, config).ConfigureAwait(false);
+            var motdSent = false;
+
+            // Keep MOTD failures from suppressing the login nag, and never let this
+            // async void handler throw into the host.
+            try
+            {
+                motdSent = await MaybeSendMotdAsync(session, config).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                _logger.LogError(ex, "Error handling session-connect MOTD");
+            }
+
+            try
+            {
+                // Many clients only render one message at a time. If we just sent the MOTD,
+                // let it expire before the login nag replaces it - otherwise the nag is never
+                // seen but is still recorded as sent, suppressing it for the whole window.
+                if (motdSent && config.EnableLoginNag)
+                {
+                    // Clamped because MessageTimeoutMs is only range-checked by the config UI.
+                    await Task.Delay(Math.Clamp(config.MessageTimeoutMs, 0, MaxMotdFollowUpDelayMs)).ConfigureAwait(false);
+                }
+
+                // A session can end (and its deterministic ID can be reused) while waiting for
+                // the MOTD to expire. Only continue for the same live SessionInfo instance.
+                var currentSession = _sessionManager.Sessions.FirstOrDefault(candidate => ReferenceEquals(candidate, session));
+                if (currentSession != null)
+                {
+                    await MaybeSendLoginOrOpenNagAsync(currentSession, config).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                _logger.LogError(ex, "Error handling session-connect login nag");
+            }
         }
-        catch (ObjectDisposedException ex)
+        finally
         {
-            _logger.LogError(ex, "Error handling session-start login nag");
+            lock (_sessionNotificationLock)
+            {
+                _sessionNotificationsInProgress.Remove(session);
+            }
         }
-        catch (InvalidOperationException ex)
+    }
+
+    private void OnSessionEnded(object? sender, SessionEventArgs e)
+    {
+        var session = e.SessionInfo;
+        if (session == null)
         {
-            _logger.LogError(ex, "Error handling session-start login nag");
+            return;
         }
-        catch (OperationCanceledException ex)
+
+        lock (_sessionNotificationLock)
         {
-            _logger.LogError(ex, "Error handling session-start login nag");
+            _motdSentSessions.Remove(session);
+            _sessionNotificationsInProgress.Remove(session);
         }
+
+        lock (_sessionLastActivityLock)
+        {
+            _sessionLastActivityUtc.Remove(session);
+        }
+    }
+
+    /// <summary>
+    /// Sends the MOTD if this session qualifies. Returns true only when a message was actually delivered.
+    /// </summary>
+    private async Task<bool> MaybeSendMotdAsync(SessionInfo session, Configuration.PluginConfiguration config)
+    {
+        if (session.Id == null || session.UserId == Guid.Empty)
+        {
+            return false;
+        }
+
+        if (!config.EnableMotd || string.IsNullOrWhiteSpace(config.MotdMessage))
+        {
+            return false;
+        }
+
+        if (TranscodeNagRules.IsUserExcluded(session.UserId, config.MotdExcludedUserIds))
+        {
+            if (config.EnableLogging)
+            {
+                _logger.LogInformation(
+                    "Skipping MOTD for excluded user {UserId} ({UserName})",
+                    session.UserId,
+                    session.UserName ?? "Unknown");
+            }
+
+            return false;
+        }
+
+        if (!TranscodeNagRules.IsMotdClientAllowed(session.Client, config))
+        {
+            if (config.EnableLogging)
+            {
+                _logger.LogInformation(
+                    "Skipping MOTD for filtered client {Client} on session {SessionId}",
+                    session.Client ?? "Unknown",
+                    session.Id);
+            }
+
+            return false;
+        }
+
+        // Claim the session before sending so concurrent controller connections cannot double-send.
+        lock (_sessionNotificationLock)
+        {
+            if (!_motdSentSessions.Add(session))
+            {
+                return false;
+            }
+        }
+
+        var sent = false;
+        try
+        {
+            sent = await SendMessageCommandWithDiagnosticsAsync(
+                session,
+                config,
+                new MessageCommand
+                {
+                    Header = "Message of the Day",
+                    Text = config.MotdMessage,
+                    TimeoutMs = config.MessageTimeoutMs
+                },
+                "motd",
+                "Message of the day").ConfigureAwait(false);
+        }
+        finally
+        {
+            // Release the claim on any failure (including an exception the send helper does not catch)
+            // so the MOTD can still be delivered if the session reconnects.
+            if (!sent)
+            {
+                lock (_sessionNotificationLock)
+                {
+                    _motdSentSessions.Remove(session);
+                }
+            }
+        }
+
+        return sent;
     }
 
     private async Task MaybeSendLoginOrOpenNagAsync(SessionInfo session, Configuration.PluginConfiguration config)
@@ -623,7 +787,7 @@ public class PlaybackMonitor : IHostedService
         }
 
         // Check if user is excluded from nag messages
-        if (IsUserExcluded(session.UserId))
+        if (TranscodeNagRules.IsUserExcluded(session.UserId, config.ExcludedUserIds))
         {
             if (config.EnableLogging)
             {
