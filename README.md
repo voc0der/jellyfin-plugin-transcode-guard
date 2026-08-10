@@ -46,6 +46,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 - Can send a login nag when a user keeps hitting bad transcodes over the last week or month.
 - Lets you exclude users from all nags.
 - Includes a live session monitor in the plugin settings page.
+- Can broadcast an optional Message of the Day to users at login, with its own user exclusions and client filters.
 
 ## Installation
 
@@ -84,9 +85,12 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 - If you want login nags, enable them and set the threshold, time window, and message. The login message supports `{{transcodes}}` and `{{timewindow}}`.
 - Use **Manage Excluded Users** to opt users out of both playback and login nags.
 - Use the built-in live session monitor to see which active sessions currently match your rules.
+- Enable **Message of the Day** (off by default) to send an announcement to everyone at login. Its options stay collapsed until the toggle is on, and it has its own message, its own **Manage Excluded Users (MOTD)** list, and its own client include/exclude filters, all independent of the nag settings.
 
 ## Behavior Notes
 
 - Playback nags happen once per video, not once per session.
 - Login nags are rate-limited and use stored history from the last 30 days.
 - If a user returns to direct play after a bad transcode, login nags are suppressed until they regress again.
+- The MOTD is sent once per session at login and is unrelated to transcode history. Sessions that were already signed in when you enabled it receive nothing until they sign in again.
+- If a user qualifies for both the MOTD and a login nag, the nag waits for the MOTD to time out first, so clients that show one message at a time still display both.

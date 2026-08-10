@@ -134,6 +134,49 @@
                     <div id="liveSettingsWarning" class="fieldDescription" style="margin-bottom: 12px;"></div>
                     <div id="liveSettingsSessionList" style="margin-bottom: 20px;"></div>
 
+                    <h2>Message of the Day</h2>
+                    <div class="fieldDescription" style="margin-bottom: 12px;">
+                        Send a message to everyone when they log in. This is independent of transcoding and has its own exclusions and client filters.
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="chkEnableMotd" name="chkEnableMotd" />
+                            <span>Enable Message of the Day</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. When on, every matching user receives the MOTD once per session at login. Sessions that are already signed in do not get it until they sign in again.</div>
+                    </div>
+
+                    <div id="motdOptions" style="display: none;">
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtMotdMessage">MOTD Message:</label>
+                            <textarea id="txtMotdMessage" name="txtMotdMessage" rows="4" class="emby-input"></textarea>
+                            <div class="fieldDescription">Message shown at login. Uses the same message timeout as nag messages.</div>
+                        </div>
+
+                        <div class="fieldDescription" style="margin-bottom: 10px;">
+                            Exclude specific users from the MOTD. This list is separate from the nag exclusion list.
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <button is="emby-button" type="button" id="btnManageMotdExclusions" class="raised block emby-button">
+                                <span>Manage Excluded Users (MOTD)</span>
+                            </button>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtMotdIncludedClientPatterns">Only Include Matching Clients (MOTD):</label>
+                            <textarea id="txtMotdIncludedClientPatterns" name="txtMotdIncludedClientPatterns" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Optional. If empty, all clients receive the MOTD. Enter one client match per line or comma.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtMotdExcludedClientPatterns">Exclude Matching Clients (MOTD):</label>
+                            <textarea id="txtMotdExcludedClientPatterns" name="txtMotdExcludedClientPatterns" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Optional. Matching clients never receive the MOTD. Excluded matches always win over includes.</div>
+                        </div>
+                    </div>
+
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block">
                             <span>Save</span>
@@ -168,6 +211,38 @@
                             <span>Save</span>
                         </button>
                         <button is="emby-button" type="button" id="btnCancelExclusions" class="raised">
+                            <span>Cancel</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MOTD User Exclusion Modal -->
+            <div id="motdUserExclusionModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; overflow-y: auto;">
+                <div style="background: var(--theme-background-content); margin: 50px auto; max-width: 600px; padding: 20px; border-radius: 4px;">
+                    <h2>Select Users to Exclude from MOTD</h2>
+                    <div class="fieldDescription" style="margin-bottom: 15px;">
+                        By default, all users receive the MOTD. Uncheck users to exclude them from the MOTD only.
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+                        <button is="emby-button" type="button" id="btnMotdUsersSelectAll" class="raised">
+                            <span>Select All</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnMotdUsersResetDefaults" class="raised">
+                            <span>Reset Defaults</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnMotdUsersClearAll" class="raised">
+                            <span>Clear All</span>
+                        </button>
+                    </div>
+                    <div id="motdUserExclusionList" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+                        <!-- User checkboxes will be populated here -->
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button is="emby-button" type="button" id="btnSaveMotdExclusions" class="raised button-submit">
+                            <span>Save</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnCancelMotdExclusions" class="raised">
                             <span>Cancel</span>
                         </button>
                     </div>
@@ -444,6 +519,25 @@
                     }
 
                     return this.matchesAny(clientName, includedPatterns);
+                }
+            };
+
+            // Keeps the MOTD block collapsed unless the feature is switched on.
+            var MotdSection = {
+                initialized: false,
+
+                init: function() {
+                    if (this.initialized) {
+                        return;
+                    }
+
+                    document.getElementById('chkEnableMotd').addEventListener('change', this.updateVisibility);
+                    this.initialized = true;
+                },
+
+                updateVisibility: function() {
+                    var enabled = document.getElementById('chkEnableMotd').checked;
+                    document.getElementById('motdOptions').style.display = enabled ? 'block' : 'none';
                 }
             };
 
@@ -752,6 +846,8 @@
                 ReasonSelector.init();
                 LiveSessionMonitor.init();
                 UserExclusionManager.init();
+                MotdUserExclusionManager.init();
+                MotdSection.init();
                 ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function (config) {
                     document.getElementById('txtNagMessage').value = config.NagMessage || '';
                     document.getElementById('txtDelaySeconds').value = config.DelaySeconds || 5;
@@ -764,6 +860,11 @@
                     document.getElementById('txtLoginNagThreshold').value = config.LoginNagThreshold || 5;
                     document.getElementById('selectLoginNagTimeWindow').value = config.LoginNagTimeWindow || 'Week';
                     document.getElementById('txtLoginNagMessage').value = config.LoginNagMessage || '';
+                    document.getElementById('chkEnableMotd').checked = config.EnableMotd === true;
+                    document.getElementById('txtMotdMessage').value = config.MotdMessage || '';
+                    document.getElementById('txtMotdIncludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdIncludedClientPatterns);
+                    document.getElementById('txtMotdExcludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdExcludedClientPatterns);
+                    MotdSection.updateVisibility();
                     ReasonSelector.render(config.AlertTranscodeReasons, config.ReasonMessageOverrides);
                     LiveSessionMonitor.refresh(false, config);
                     LiveSessionMonitor.startRefreshTimer();
@@ -787,6 +888,10 @@
                     config.LoginNagThreshold = parseInt(document.getElementById('txtLoginNagThreshold').value);
                     config.LoginNagTimeWindow = document.getElementById('selectLoginNagTimeWindow').value;
                     config.LoginNagMessage = document.getElementById('txtLoginNagMessage').value;
+                    config.EnableMotd = document.getElementById('chkEnableMotd').checked;
+                    config.MotdMessage = document.getElementById('txtMotdMessage').value;
+                    config.MotdIncludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdIncludedClientPatterns').value);
+                    config.MotdExcludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdExcludedClientPatterns').value);
                     config.AlertTranscodeReasons = ReasonSelector.getSelectedReasonNames();
                     config.ReasonMessageOverrides = ReasonSelector.getReasonMessageOverrides();
 
@@ -798,120 +903,166 @@
                 return false;
             });
 
-            // User Exclusion Management
-            var UserExclusionManager = {
-                initialized: false,
-                allUsers: [],
-                excludedUserIds: [],
+            // User Exclusion Management.
+            // One instance per exclusion list (nag messages and MOTD keep separate lists).
+            function createUserExclusionManager(options) {
+                return {
+                    initialized: false,
+                    allUsers: [],
+                    excludedUserIds: [],
+                    options: options,
 
-                init: function() {
-                    if (this.initialized) {
-                        return;
-                    }
+                    init: function() {
+                        if (this.initialized) {
+                            return;
+                        }
 
-                    document.getElementById('btnManageExclusions').addEventListener('click', this.openModal.bind(this));
-                    document.getElementById('btnSaveExclusions').addEventListener('click', this.saveExclusions.bind(this));
-                    document.getElementById('btnCancelExclusions').addEventListener('click', this.closeModal.bind(this));
-                    document.getElementById('btnUsersSelectAll').addEventListener('click', this.selectAllUsers.bind(this));
-                    document.getElementById('btnUsersResetDefaults').addEventListener('click', this.resetUserDefaults.bind(this));
-                    document.getElementById('btnUsersClearAll').addEventListener('click', this.clearAllUsers.bind(this));
-                    this.initialized = true;
-                },
+                        document.getElementById(options.openButtonId).addEventListener('click', this.openModal.bind(this));
+                        document.getElementById(options.saveButtonId).addEventListener('click', this.saveExclusions.bind(this));
+                        document.getElementById(options.cancelButtonId).addEventListener('click', this.closeModal.bind(this));
+                        document.getElementById(options.selectAllButtonId).addEventListener('click', this.selectAllUsers.bind(this));
+                        document.getElementById(options.resetButtonId).addEventListener('click', this.resetUserDefaults.bind(this));
+                        document.getElementById(options.clearAllButtonId).addEventListener('click', this.clearAllUsers.bind(this));
+                        this.initialized = true;
+                    },
 
-                openModal: function() {
-                    Dashboard.showLoadingMsg();
+                    openModal: function() {
+                        var manager = this;
+                        Dashboard.showLoadingMsg();
 
-                    // Fetch current exclusion list from config
-                    ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function(config) {
-                        UserExclusionManager.excludedUserIds = config.ExcludedUserIds || [];
+                        // Fetch current exclusion list from config
+                        ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function(config) {
+                            manager.excludedUserIds = config[options.configProperty] || [];
 
-                        // Fetch all users from Jellyfin
-                        ApiClient.getUsers().then(function(users) {
-                            UserExclusionManager.allUsers = users;
-                            UserExclusionManager.renderUserList();
-                            document.getElementById('userExclusionModal').style.display = 'block';
+                            // Fetch all users from Jellyfin
+                            return ApiClient.getUsers();
+                        }).then(function(users) {
+                            manager.allUsers = users;
+                            manager.renderUserList();
+                            document.getElementById(options.modalId).style.display = 'block';
                             Dashboard.hideLoadingMsg();
                         }).catch(function(error) {
-                            console.error('Error fetching users:', error);
+                            console.error('Error loading user exclusions:', error);
                             Dashboard.alert('Failed to load users. Check console for details.');
                             Dashboard.hideLoadingMsg();
                         });
-                    });
-                },
+                    },
 
-                closeModal: function() {
-                    document.getElementById('userExclusionModal').style.display = 'none';
-                },
+                    closeModal: function() {
+                        document.getElementById(options.modalId).style.display = 'none';
+                    },
 
-                renderUserList: function() {
-                    var listHtml = '';
+                    renderUserList: function() {
+                        var listHtml = '';
+                        var excludedUserMap = {};
 
-                    this.allUsers.forEach(function(user) {
-                        var userId = user.Id;
-                        var userName = user.Name;
-                        var isIncluded = UserExclusionManager.excludedUserIds.indexOf(userId) === -1;
+                        this.excludedUserIds.forEach(function(userId) {
+                            var key = LiveSessionMonitor.normalizeId(userId);
+                            if (key) {
+                                excludedUserMap[key] = true;
+                            }
+                        });
 
-                        listHtml += '<div class="checkboxContainer" style="margin-bottom: 10px;">';
-                        listHtml += '<label>';
-                        listHtml += '<input type="checkbox" is="emby-checkbox" data-user-id="' + userId + '" ' + (isIncluded ? 'checked' : '') + ' />';
-                        listHtml += '<span>' + userName + '</span>';
-                        listHtml += '</label>';
-                        listHtml += '</div>';
-                    });
+                        this.allUsers.forEach(function(user) {
+                            var userId = user.Id;
+                            var userName = user.Name;
+                            var isIncluded = !excludedUserMap[LiveSessionMonitor.normalizeId(userId)];
 
-                    document.getElementById('userExclusionList').innerHTML = listHtml;
-                },
+                            listHtml += '<div class="checkboxContainer" style="margin-bottom: 10px;">';
+                            listHtml += '<label>';
+                            listHtml += '<input type="checkbox" is="emby-checkbox" data-user-id="' + escapeHtml(userId) + '" ' + (isIncluded ? 'checked' : '') + ' />';
+                            listHtml += '<span>' + escapeHtml(userName) + '</span>';
+                            listHtml += '</label>';
+                            listHtml += '</div>';
+                        });
 
-                selectAllUsers: function() {
-                    var checkboxes = document.querySelectorAll('#userExclusionList input[type="checkbox"]');
-                    checkboxes.forEach(function(checkbox) {
-                        checkbox.checked = true;
-                    });
-                },
+                        document.getElementById(options.listId).innerHTML = listHtml;
+                    },
 
-                resetUserDefaults: function() {
-                    this.selectAllUsers();
-                },
+                    selectAllUsers: function() {
+                        var checkboxes = document.querySelectorAll('#' + options.listId + ' input[type="checkbox"]');
+                        checkboxes.forEach(function(checkbox) {
+                            checkbox.checked = true;
+                        });
+                    },
 
-                clearAllUsers: function() {
-                    var checkboxes = document.querySelectorAll('#userExclusionList input[type="checkbox"]');
-                    checkboxes.forEach(function(checkbox) {
-                        checkbox.checked = false;
-                    });
-                },
+                    resetUserDefaults: function() {
+                        this.selectAllUsers();
+                    },
 
-                saveExclusions: function() {
-                    Dashboard.showLoadingMsg();
+                    clearAllUsers: function() {
+                        var checkboxes = document.querySelectorAll('#' + options.listId + ' input[type="checkbox"]');
+                        checkboxes.forEach(function(checkbox) {
+                            checkbox.checked = false;
+                        });
+                    },
 
-                    // Collect unchecked users (excluded users)
-                    var checkboxes = document.querySelectorAll('#userExclusionList input[type="checkbox"]');
-                    var newExcludedUserIds = [];
+                    saveExclusions: function() {
+                        var manager = this;
+                        Dashboard.showLoadingMsg();
 
-                    checkboxes.forEach(function(checkbox) {
-                        if (!checkbox.checked) {
-                            newExcludedUserIds.push(checkbox.getAttribute('data-user-id'));
-                        }
-                    });
+                        // Collect unchecked users (excluded users)
+                        var checkboxes = document.querySelectorAll('#' + options.listId + ' input[type="checkbox"]');
+                        var newExcludedUserIds = [];
 
-                    // Update configuration
-                    ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function(config) {
-                        config.ExcludedUserIds = newExcludedUserIds;
+                        checkboxes.forEach(function(checkbox) {
+                            if (!checkbox.checked) {
+                                newExcludedUserIds.push(checkbox.getAttribute('data-user-id'));
+                            }
+                        });
 
-                        ApiClient.updatePluginConfiguration(TranscodeNagConfig.pluginId, config).then(function(result) {
-                            UserExclusionManager.excludedUserIds = newExcludedUserIds;
-                            UserExclusionManager.closeModal();
+                        // Update configuration
+                        ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function(config) {
+                            config[options.configProperty] = newExcludedUserIds;
+
+                            return ApiClient.updatePluginConfiguration(TranscodeNagConfig.pluginId, config);
+                        }).then(function() {
+                            manager.excludedUserIds = newExcludedUserIds;
+                            manager.closeModal();
                             Dashboard.hideLoadingMsg();
 
                             // Show a subtle notification
                             if (newExcludedUserIds.length === 0) {
-                                Dashboard.alert('All users are now included in nag messages.');
+                                Dashboard.alert(options.allIncludedMessage);
                             } else {
-                                Dashboard.alert(newExcludedUserIds.length + ' user(s) excluded from nag messages.');
+                                Dashboard.alert(newExcludedUserIds.length + options.excludedMessageSuffix);
                             }
+                        }).catch(function(error) {
+                            console.error('Error saving user exclusions:', error);
+                            Dashboard.alert('Failed to save user exclusions. Check console for details.');
+                            Dashboard.hideLoadingMsg();
                         });
-                    });
-                }
-            };
+                    }
+                };
+            }
+
+            var UserExclusionManager = createUserExclusionManager({
+                modalId: 'userExclusionModal',
+                listId: 'userExclusionList',
+                openButtonId: 'btnManageExclusions',
+                saveButtonId: 'btnSaveExclusions',
+                cancelButtonId: 'btnCancelExclusions',
+                selectAllButtonId: 'btnUsersSelectAll',
+                resetButtonId: 'btnUsersResetDefaults',
+                clearAllButtonId: 'btnUsersClearAll',
+                configProperty: 'ExcludedUserIds',
+                allIncludedMessage: 'All users are now included in nag messages.',
+                excludedMessageSuffix: ' user(s) excluded from nag messages.'
+            });
+
+            var MotdUserExclusionManager = createUserExclusionManager({
+                modalId: 'motdUserExclusionModal',
+                listId: 'motdUserExclusionList',
+                openButtonId: 'btnManageMotdExclusions',
+                saveButtonId: 'btnSaveMotdExclusions',
+                cancelButtonId: 'btnCancelMotdExclusions',
+                selectAllButtonId: 'btnMotdUsersSelectAll',
+                resetButtonId: 'btnMotdUsersResetDefaults',
+                clearAllButtonId: 'btnMotdUsersClearAll',
+                configProperty: 'MotdExcludedUserIds',
+                allIncludedMessage: 'All users will now receive the MOTD.',
+                excludedMessageSuffix: ' user(s) excluded from the MOTD.'
+            });
 
             document.getElementById('TranscodeNagConfigPage').addEventListener('pagehide', function() {
                 LiveSessionMonitor.stopRefreshTimer();
