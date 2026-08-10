@@ -60,6 +60,16 @@ public class PluginConfiguration : BasePluginConfiguration
     public string[] ExcludedClientPatterns { get; set; } = Array.Empty<string>();
 
     public string[] ExcludedUserIds { get; set; } = Array.Empty<string>();
+
+    public bool EnableMotd { get; set; } = false;
+
+    public string MotdMessage { get; set; } = "Welcome back! Check the announcements channel for server news and planned maintenance.";
+
+    public string[] MotdExcludedUserIds { get; set; } = Array.Empty<string>();
+
+    public string[] MotdIncludedClientPatterns { get; set; } = Array.Empty<string>();
+
+    public string[] MotdExcludedClientPatterns { get; set; } = Array.Empty<string>();
 }
 
 public class ReasonMessageOverride

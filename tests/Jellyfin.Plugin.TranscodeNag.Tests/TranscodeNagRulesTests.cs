@@ -95,6 +95,49 @@ public class TranscodeNagRulesTests
     }
 
     [Fact]
+    public void IsMotdClientAllowed_UsesMotdPatternsAndIgnoresNagPatterns()
+    {
+        var config = new PluginConfiguration
+        {
+            IncludedClientPatterns = new[] { "web" },
+            ExcludedClientPatterns = new[] { "android tv" },
+            MotdIncludedClientPatterns = new[] { "android tv" },
+            MotdExcludedClientPatterns = new[] { "roku" }
+        };
+
+        Assert.True(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Android TV", config));
+        Assert.False(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Web", config));
+        Assert.False(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Roku", config));
+    }
+
+    [Fact]
+    public void IsMotdClientAllowed_AllowsEveryClientWhenNoMotdPatternsAreConfigured()
+    {
+        var config = new PluginConfiguration
+        {
+            ExcludedClientPatterns = new[] { "android tv" }
+        };
+
+        Assert.True(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Android TV", config));
+        Assert.True(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Web", config));
+        Assert.True(TranscodeNagRules.IsMotdClientAllowed(null, config));
+    }
+
+    [Fact]
+    public void IsUserExcluded_MatchesDashedAndDashlessGuids()
+    {
+        var userId = Guid.NewGuid();
+
+        Assert.True(TranscodeNagRules.IsUserExcluded(userId, new[] { userId.ToString("N") }));
+        Assert.True(TranscodeNagRules.IsUserExcluded(userId, new[] { userId.ToString("D") }));
+        Assert.True(TranscodeNagRules.IsUserExcluded(userId, new[] { " ", userId.ToString("N").ToUpperInvariant() }));
+        Assert.False(TranscodeNagRules.IsUserExcluded(userId, new[] { Guid.NewGuid().ToString("N") }));
+        Assert.False(TranscodeNagRules.IsUserExcluded(userId, Array.Empty<string>()));
+        Assert.False(TranscodeNagRules.IsUserExcluded(userId, null));
+        Assert.False(TranscodeNagRules.IsUserExcluded(Guid.Empty, new[] { Guid.Empty.ToString("N") }));
+    }
+
+    [Fact]
     public void IsLiveTvItem_DetectsLiveAndLiveTvItemTypes()
     {
         Assert.True(TranscodeNagRules.IsLiveTvItem(new BaseItemDto { IsLive = true, Type = BaseItemKind.Movie }));
