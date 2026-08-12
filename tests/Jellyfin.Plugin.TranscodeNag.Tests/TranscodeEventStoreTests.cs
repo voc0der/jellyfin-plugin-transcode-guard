@@ -1,5 +1,5 @@
-using Jellyfin.Plugin.TranscodeNag.Data;
 using Jellyfin.Plugin.TranscodeNag.Configuration;
+using Jellyfin.Plugin.TranscodeNag.Data;
 using Jellyfin.Plugin.TranscodeNag.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 
