@@ -239,12 +239,10 @@ public class PlaybackMonitor : IHostedService
                 // Record the event
                 RecordTranscodeEvent(session, transcodeInfo);
 
-                if (!_naggedPlaybacks.Contains(playbackKey))
+                if (!_naggedPlaybacks.Contains(playbackKey)
+                    && await SendNagMessageAsync(session, config).ConfigureAwait(false))
                 {
-                    if (await SendNagMessageAsync(session, config).ConfigureAwait(false))
-                    {
-                        _naggedPlaybacks.Add(playbackKey);
-                    }
+                    _naggedPlaybacks.Add(playbackKey);
                 }
             }
         }
@@ -309,13 +307,8 @@ public class PlaybackMonitor : IHostedService
 
         if (transcodeInfo != null && overrides != null && overrides.Length > 0 && config.AlertTranscodeReasons != null)
         {
-            foreach (var reasonName in config.AlertTranscodeReasons)
+            foreach (var reasonName in config.AlertTranscodeReasons.Where(reasonName => !string.IsNullOrWhiteSpace(reasonName)))
             {
-                if (string.IsNullOrWhiteSpace(reasonName))
-                {
-                    continue;
-                }
-
                 if (Enum.TryParse<TranscodeReason>(reasonName, true, out var parsedReason)
                     && (transcodeInfo.TranscodeReasons & parsedReason) != 0)
                 {
