@@ -179,8 +179,9 @@
 
                     <h2>GPU Resource Guard</h2>
                     <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Refuses a hardware video transcode before FFmpeg is launched when the GPU is short on memory,
-                        so a doomed transcode fails once and clearly instead of retrying. Requires <code>nvidia-smi</code>
+                        Refuses an NVIDIA hardware video transcode before FFmpeg is launched when the GPU is short
+                        on memory, so a doomed transcode fails once and clearly instead of retrying. NVIDIA only:
+                        QSV, VAAPI, and VideoToolbox transcodes are never refused. Requires <code>nvidia-smi</code>
                         to be reachable from the Jellyfin server process.
                     </div>
 
@@ -202,7 +203,7 @@
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtMinimumFreeGpuMemoryMiB">Minimum free GPU memory (MiB):</label>
                             <input type="number" id="txtMinimumFreeGpuMemoryMiB" name="txtMinimumFreeGpuMemoryMiB" min="0" max="131072" class="emby-input" />
-                            <div class="fieldDescription">Hardware video transcoding is refused when available GPU memory is below this value. Direct Play and other non-GPU playback are unaffected.</div>
+                            <div class="fieldDescription">NVIDIA hardware video transcoding is refused when available GPU memory is below this value. Direct Play and other non-GPU playback are unaffected.</div>
                         </div>
 
                         <div class="inputContainer">
