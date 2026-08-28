@@ -47,6 +47,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 - Lets you exclude users from all nags.
 - Includes a live session monitor in the plugin settings page.
 - Can broadcast an optional Message of the Day to users at login, with its own user exclusions and client filters.
+- Can refuse an NVIDIA hardware transcode before FFmpeg starts when free VRAM is below a threshold.
 
 ## Installation
 
@@ -86,6 +87,7 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 - Use **Manage Excluded Users** to opt users out of both playback and login nags.
 - Use the built-in live session monitor to see which active sessions currently match your rules.
 - Enable **Message of the Day** (off by default) to send an announcement to everyone at login. Its options stay collapsed until the toggle is on, and it has its own message, its own **Manage Excluded Users (MOTD)** list, and its own client include/exclude filters, all independent of the nag settings.
+- Enable **GPU resource guard** (off by default) to set the GPU index, minimum free VRAM, nvidia-smi timeout and path, and the message a refused client sees. `nvidia-smi` must be runnable by the Jellyfin server process.
 
 ## Behavior Notes
 
@@ -94,3 +96,5 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 - If a user returns to direct play after a bad transcode, login nags are suppressed until they regress again.
 - The MOTD is sent once per session at login and is unrelated to transcode history. Sessions that were already signed in when you enabled it receive nothing until they sign in again.
 - If a user qualifies for both the MOTD and a login nag, the nag waits for the MOTD to time out first, so clients that show one message at a time still display both.
+- The GPU guard only refuses NVIDIA video transcodes. Direct Play, Direct Stream, remux, audio-only, and CPU transcodes are never refused, and playback is allowed whenever free VRAM cannot be read.
+- A refused stream returns HTTP 400 and starts no FFmpeg process. Freeing GPU memory restores playback on the next attempt, with no setting change or restart.

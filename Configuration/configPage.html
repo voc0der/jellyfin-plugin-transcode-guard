@@ -177,6 +177,60 @@
                         </div>
                     </div>
 
+                    <h2>GPU Resource Guard</h2>
+                    <div class="fieldDescription" style="margin-bottom: 12px;">
+                        Refuses an NVIDIA hardware video transcode before FFmpeg is launched when the GPU is short
+                        on memory, so a doomed transcode fails once and clearly instead of retrying. NVIDIA only:
+                        QSV, VAAPI, and VideoToolbox transcodes are never refused. Requires <code>nvidia-smi</code>
+                        to be reachable from the Jellyfin server process.
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="chkEnableGpuResourceGuard" name="chkEnableGpuResourceGuard" />
+                            <span>Enable GPU resource guard</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. If free GPU memory cannot be read, playback is always allowed.</div>
+                    </div>
+
+                    <div id="gpuGuardOptions" style="display: none;">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtGpuIndex">GPU index:</label>
+                            <input type="number" id="txtGpuIndex" name="txtGpuIndex" min="0" max="15" class="emby-input" />
+                            <div class="fieldDescription">Zero-based index of the NVIDIA GPU to watch, as reported by nvidia-smi.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtMinimumFreeGpuMemoryMiB">Minimum free GPU memory (MiB):</label>
+                            <input type="number" id="txtMinimumFreeGpuMemoryMiB" name="txtMinimumFreeGpuMemoryMiB" min="0" max="131072" class="emby-input" />
+                            <div class="fieldDescription">NVIDIA hardware video transcoding is refused when available GPU memory is below this value. Direct Play and other non-GPU playback are unaffected.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtGpuCheckTimeoutMs">GPU check timeout (ms):</label>
+                            <input type="number" id="txtGpuCheckTimeoutMs" name="txtGpuCheckTimeoutMs" min="100" max="10000" class="emby-input" />
+                            <div class="fieldDescription">How long to wait for nvidia-smi before giving up and allowing playback.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtNvidiaSmiPath">nvidia-smi path:</label>
+                            <input type="text" id="txtNvidiaSmiPath" name="txtNvidiaSmiPath" class="emby-input" placeholder="nvidia-smi" />
+                            <div class="fieldDescription">Optional. Leave empty to resolve nvidia-smi from PATH. Set a full path if the server cannot find it.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtGpuGuardDeniedHeader">Refusal Title:</label>
+                            <input type="text" id="txtGpuGuardDeniedHeader" name="txtGpuGuardDeniedHeader" class="emby-input" />
+                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtGpuGuardDeniedMessage">Refusal Message:</label>
+                            <textarea id="txtGpuGuardDeniedMessage" name="txtGpuGuardDeniedMessage" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Keep this free of server detail. VRAM figures, encoder names, and FFmpeg errors belong in the server log.</div>
+                        </div>
+                    </div>
+
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block">
                             <span>Save</span>
@@ -541,6 +595,36 @@
                 }
             };
 
+            // Keeps the GPU guard block collapsed unless the feature is switched on.
+            var GpuGuardSection = {
+                initialized: false,
+
+                init: function() {
+                    if (this.initialized) {
+                        return;
+                    }
+
+                    document.getElementById('chkEnableGpuResourceGuard').addEventListener('change', this.updateVisibility);
+                    this.initialized = true;
+                },
+
+                updateVisibility: function() {
+                    var enabled = document.getElementById('chkEnableGpuResourceGuard').checked;
+                    document.getElementById('gpuGuardOptions').style.display = enabled ? 'block' : 'none';
+                },
+
+                // A blank or non-numeric field must not be saved as NaN.
+                readNumber: function(elementId, fallback) {
+                    var parsed = parseInt(document.getElementById(elementId).value, 10);
+                    return isNaN(parsed) || parsed < 0 ? fallback : parsed;
+                },
+
+                // A saved 0 is a real value here, so it must not be treated as "unset".
+                numberOrDefault: function(value, fallback) {
+                    return typeof value === 'number' && isFinite(value) && value >= 0 ? value : fallback;
+                }
+            };
+
             var LiveSessionMonitor = {
                 initialized: false,
                 refreshTimer: null,
@@ -848,6 +932,7 @@
                 UserExclusionManager.init();
                 MotdUserExclusionManager.init();
                 MotdSection.init();
+                GpuGuardSection.init();
                 ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function (config) {
                     document.getElementById('txtNagMessage').value = config.NagMessage || '';
                     document.getElementById('txtDelaySeconds').value = config.DelaySeconds || 5;
@@ -864,7 +949,15 @@
                     document.getElementById('txtMotdMessage').value = config.MotdMessage || '';
                     document.getElementById('txtMotdIncludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdIncludedClientPatterns);
                     document.getElementById('txtMotdExcludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdExcludedClientPatterns);
+                    document.getElementById('chkEnableGpuResourceGuard').checked = config.EnableGpuResourceGuard === true;
+                    document.getElementById('txtGpuIndex').value = GpuGuardSection.numberOrDefault(config.GpuIndex, 0);
+                    document.getElementById('txtMinimumFreeGpuMemoryMiB').value = GpuGuardSection.numberOrDefault(config.MinimumFreeGpuMemoryMiB, 1500);
+                    document.getElementById('txtGpuCheckTimeoutMs').value = GpuGuardSection.numberOrDefault(config.GpuCheckTimeoutMilliseconds, 1000);
+                    document.getElementById('txtNvidiaSmiPath').value = config.NvidiaSmiPath || '';
+                    document.getElementById('txtGpuGuardDeniedHeader').value = config.GpuGuardDeniedHeader || '';
+                    document.getElementById('txtGpuGuardDeniedMessage').value = config.GpuGuardDeniedMessage || '';
                     MotdSection.updateVisibility();
+                    GpuGuardSection.updateVisibility();
                     ReasonSelector.render(config.AlertTranscodeReasons, config.ReasonMessageOverrides);
                     LiveSessionMonitor.refresh(false, config);
                     LiveSessionMonitor.startRefreshTimer();
@@ -892,6 +985,13 @@
                     config.MotdMessage = document.getElementById('txtMotdMessage').value;
                     config.MotdIncludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdIncludedClientPatterns').value);
                     config.MotdExcludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdExcludedClientPatterns').value);
+                    config.EnableGpuResourceGuard = document.getElementById('chkEnableGpuResourceGuard').checked;
+                    config.GpuIndex = GpuGuardSection.readNumber('txtGpuIndex', 0);
+                    config.MinimumFreeGpuMemoryMiB = GpuGuardSection.readNumber('txtMinimumFreeGpuMemoryMiB', 1500);
+                    config.GpuCheckTimeoutMilliseconds = GpuGuardSection.readNumber('txtGpuCheckTimeoutMs', 1000);
+                    config.NvidiaSmiPath = document.getElementById('txtNvidiaSmiPath').value.trim();
+                    config.GpuGuardDeniedHeader = document.getElementById('txtGpuGuardDeniedHeader').value;
+                    config.GpuGuardDeniedMessage = document.getElementById('txtGpuGuardDeniedMessage').value;
                     config.AlertTranscodeReasons = ReasonSelector.getSelectedReasonNames();
                     config.ReasonMessageOverrides = ReasonSelector.getReasonMessageOverrides();
 
