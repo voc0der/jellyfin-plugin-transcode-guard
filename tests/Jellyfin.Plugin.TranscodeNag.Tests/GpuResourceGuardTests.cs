@@ -158,6 +158,7 @@ public class GpuResourceGuardTests
             Assert.False(await guard.IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None));
         }
 
+
         // Every attempt is still refused; only the client popup is de-duplicated.
         Assert.Single(messages.SentMessages);
     }
@@ -241,16 +242,39 @@ public class GpuResourceGuardTests
     }
 
     [Fact]
-    public async Task IsAdmittedAsync_DeniesAgainOnceTheSuppressionWindowHasNoEntry()
+    public async Task IsAdmittedAsync_RenegotiatedRetriesDoNotEachGetAPopup()
     {
         var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
         var messages = new RecordingClientMessageService();
         messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
         var guard = CreateGuard(EnabledConfig(1500), provider, messages);
 
-        // A different play session is a different playback attempt, so it gets its own popup.
-        await guard.IsAdmittedAsync(HardwareTranscodeRequest("device-2", "play-2"), CancellationToken.None);
-        await guard.IsAdmittedAsync(HardwareTranscodeRequest("device-2", "play-3"), CancellationToken.None);
+        // A refused client renegotiates from /Items/{id}/PlaybackInfo, and Jellyfin mints a new
+        // PlaySessionId every time. Same device, same item, so it is still one refused playback.
+        foreach (var playSessionId in new[] { "play-2", "play-3", "play-4" })
+        {
+            Assert.False(await guard.IsAdmittedAsync(
+                HardwareTranscodeRequest("device-2", playSessionId),
+                CancellationToken.None));
+        }
+
+        Assert.Single(messages.SentMessages);
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_ADifferentItemOnTheSameDeviceStillGetsItsOwnPopup()
+    {
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+        var guard = CreateGuard(EnabledConfig(1500), provider, messages);
+
+        var firstItem = HardwareTranscodeRequest("device-2", "play-2");
+        var secondItem = HardwareTranscodeRequest("device-2", "play-3");
+        secondItem.ItemId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+
+        await guard.IsAdmittedAsync(firstItem, CancellationToken.None);
+        await guard.IsAdmittedAsync(secondItem, CancellationToken.None);
 
         Assert.Equal(2, messages.SentMessages.Count);
     }

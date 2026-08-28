@@ -22,9 +22,12 @@ namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 /// </remarks>
 public sealed class GpuResourceGuard
 {
-    // Jellyfin (and clients) re-request a failed stream within seconds. Every attempt is still
-    // refused; this only stops the client popup and the warning log repeating.
-    private static readonly TimeSpan NotificationSuppressionWindow = TimeSpan.FromSeconds(10);
+    // A refused client does not simply retry the stream URL: it renegotiates from
+    // /Items/{id}/PlaybackInfo, and Jellyfin mints a fresh PlaySessionId on every one of those
+    // calls. A window keyed on the play session therefore suppresses nothing, which is why a
+    // single refused playback produced a popup per renegotiation. Key on device plus item, and
+    // keep the window wide enough to span a client's whole give-up sequence.
+    private static readonly TimeSpan NotificationSuppressionWindow = TimeSpan.FromSeconds(30);
 
     private const string DefaultDeniedHeader = "Transcoding unavailable";
     private const string DefaultDeniedMessage = "GPU resources are currently busy. Please try again later or use Direct Play.";
@@ -212,12 +215,18 @@ public sealed class GpuResourceGuard
     private static string Fallback(string? configured, string defaultText)
         => string.IsNullOrWhiteSpace(configured) ? defaultText : configured;
 
+    /// <summary>
+    /// Identifies "this client, this item" across renegotiation. Deliberately excludes
+    /// PlaySessionId: Jellyfin issues a new one per PlaybackInfo call, so including it would make
+    /// every renegotiated retry look like a first refusal.
+    /// </summary>
+    /// <param name="request">The refused transcode.</param>
+    /// <returns>The suppression key.</returns>
     private static string BuildSuppressionKey(GpuTranscodeRequest request)
     {
         return string.Join(
             '|',
             request.DeviceId ?? string.Empty,
-            request.PlaySessionId ?? string.Empty,
             request.ItemId.ToString("N", CultureInfo.InvariantCulture));
     }
 
