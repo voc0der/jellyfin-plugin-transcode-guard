@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 
 namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 
@@ -26,47 +27,53 @@ internal static class NvidiaSmiOutputParser
             return false;
         }
 
-        foreach (var rawLine in output.Split('\n'))
+        var rows = output
+            .Split('\n')
+            .Select(rawLine => rawLine.Trim())
+            .Where(line => line.Contains(',', StringComparison.Ordinal));
+
+        foreach (var row in rows)
         {
-            var line = rawLine.Trim();
-            if (line.Length == 0)
-            {
-                continue;
-            }
+            var separator = row.IndexOf(',', StringComparison.Ordinal);
 
-            var separator = line.IndexOf(',', StringComparison.Ordinal);
-            if (separator < 0)
-            {
-                continue;
-            }
-
-            var indexText = line.AsSpan(0, separator).Trim();
-            var freeText = line.AsSpan(separator + 1).Trim();
-
-            // A second comma would mean the caller changed the query; only the first two fields are ours.
-            var extraSeparator = freeText.IndexOf(',');
-            if (extraSeparator >= 0)
-            {
-                freeText = freeText[..extraSeparator].Trim();
-            }
-
-            if (!int.TryParse(indexText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedIndex)
+            if (!int.TryParse(
+                    row.AsSpan(0, separator).Trim(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var parsedIndex)
                 || parsedIndex != gpuIndex)
             {
                 continue;
             }
 
-            if (!int.TryParse(freeText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedFree)
-                || parsedFree < 0)
-            {
-                // The index matched but the value is unusable (for example "[N/A]" while the driver reloads).
-                return false;
-            }
-
-            freeMiB = parsedFree;
-            return true;
+            // The index matched, so this is our row. A value we cannot read (for example "[N/A]"
+            // while the driver reloads) means the lookup failed, not that we keep scanning.
+            return TryParseFreeMiB(row.AsSpan(separator + 1), out freeMiB);
         }
 
         return false;
+    }
+
+    private static bool TryParseFreeMiB(ReadOnlySpan<char> value, out int freeMiB)
+    {
+        freeMiB = 0;
+
+        var trimmed = value.Trim();
+
+        // A second comma would mean the caller changed the query; only the first two fields are ours.
+        var extraSeparator = trimmed.IndexOf(',');
+        if (extraSeparator >= 0)
+        {
+            trimmed = trimmed[..extraSeparator].Trim();
+        }
+
+        if (!int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            || parsed < 0)
+        {
+            return false;
+        }
+
+        freeMiB = parsed;
+        return true;
     }
 }

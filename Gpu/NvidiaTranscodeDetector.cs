@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 
@@ -128,31 +129,14 @@ internal static class NvidiaTranscodeDetector
 
     private static bool IsVideoCodecFlag(string flag)
     {
-        foreach (var prefix in VideoCodecFlagPrefixes)
-        {
-            // Matches "-c:v" as well as the stream-qualified "-codec:v:0".
-            if (flag.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                && (flag.Length == prefix.Length || flag[prefix.Length] == ':'))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        // Matches "-c:v" as well as the stream-qualified "-codec:v:0".
+        return VideoCodecFlagPrefixes.Any(prefix =>
+            flag.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            && (flag.Length == prefix.Length || flag[prefix.Length] == ':'));
     }
 
     private static bool IsFilterFlag(string flag)
-    {
-        foreach (var filterFlag in FilterFlags)
-        {
-            if (Is(flag, filterFlag))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+        => FilterFlags.Any(filterFlag => Is(flag, filterFlag));
 
     private static bool StartsWithDeviceType(string value, string deviceType)
     {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.TranscodeNag.Configuration;
@@ -245,19 +246,10 @@ public sealed class GpuResourceGuard
             return;
         }
 
-        List<string>? expired = null;
-        foreach (var entry in _lastNotifiedUtc)
-        {
-            if (now - entry.Value >= NotificationSuppressionWindow)
-            {
-                (expired ??= new List<string>()).Add(entry.Key);
-            }
-        }
-
-        if (expired == null)
-        {
-            return;
-        }
+        var expired = _lastNotifiedUtc
+            .Where(entry => now - entry.Value >= NotificationSuppressionWindow)
+            .Select(entry => entry.Key)
+            .ToList();
 
         foreach (var key in expired)
         {
