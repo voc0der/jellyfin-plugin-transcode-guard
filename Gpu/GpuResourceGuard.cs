@@ -22,12 +22,16 @@ namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 /// </remarks>
 public sealed class GpuResourceGuard
 {
-    // A refused client does not simply retry the stream URL: it renegotiates from
-    // /Items/{id}/PlaybackInfo, and Jellyfin mints a fresh PlaySessionId on every one of those
-    // calls. A window keyed on the play session therefore suppresses nothing, which is why a
-    // single refused playback produced a popup per renegotiation. Key on device plus item, and
-    // keep the window wide enough to span a client's whole give-up sequence.
-    private static readonly TimeSpan NotificationSuppressionWindow = TimeSpan.FromSeconds(30);
+    // One press of play can produce several refusals: the client renegotiates from
+    // /Items/{id}/PlaybackInfo on failure, and Jellyfin mints a fresh PlaySessionId each time, so
+    // those retries are indistinguishable from a new request except by timing. They arrive
+    // back-to-back; a person who dismisses the error and presses play again does not.
+    //
+    // So this is a debounce on the gap between refusals, not a window from the first one. A burst
+    // collapses to a single popup however long it runs, and the moment the client stops hammering,
+    // the next refusal is announced again. A fixed window cannot do both: it either spams during
+    // the burst or goes silent on someone genuinely retrying.
+    private static readonly TimeSpan DefaultNotificationQuietPeriod = TimeSpan.FromSeconds(5);
 
     private const string DefaultDeniedHeader = "Transcoding unavailable";
     private const string DefaultDeniedMessage = "GPU resources are currently busy. Please try again later or use Direct Play.";
@@ -37,7 +41,9 @@ public sealed class GpuResourceGuard
     private readonly ILogger<GpuResourceGuard> _logger;
     private readonly Func<PluginConfiguration?> _configurationAccessor;
 
-    private readonly Dictionary<string, DateTimeOffset> _lastNotifiedUtc = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _lastRefusalUtc = new(StringComparer.Ordinal);
+    private readonly TimeSpan _notificationQuietPeriod;
+    private readonly Func<DateTimeOffset> _clock;
     private readonly object _suppressionLock = new();
 
     public GpuResourceGuard(
@@ -53,11 +59,30 @@ public sealed class GpuResourceGuard
         IClientMessageService clientMessageService,
         ILogger<GpuResourceGuard> logger,
         Func<PluginConfiguration?> configurationAccessor)
+        : this(
+            gpuMemoryProvider,
+            clientMessageService,
+            logger,
+            configurationAccessor,
+            DefaultNotificationQuietPeriod,
+            () => DateTimeOffset.UtcNow)
+    {
+    }
+
+    internal GpuResourceGuard(
+        IGpuMemoryProvider gpuMemoryProvider,
+        IClientMessageService clientMessageService,
+        ILogger<GpuResourceGuard> logger,
+        Func<PluginConfiguration?> configurationAccessor,
+        TimeSpan notificationQuietPeriod,
+        Func<DateTimeOffset> clock)
     {
         _gpuMemoryProvider = gpuMemoryProvider;
         _clientMessageService = clientMessageService;
         _logger = logger;
         _configurationAccessor = configurationAccessor;
+        _notificationQuietPeriod = notificationQuietPeriod;
+        _clock = clock;
     }
 
     /// <summary>
@@ -232,37 +257,37 @@ public sealed class GpuResourceGuard
 
     private bool ShouldNotify(string key)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock();
 
         lock (_suppressionLock)
         {
-            if (_lastNotifiedUtc.TryGetValue(key, out var previous)
-                && now - previous < NotificationSuppressionWindow)
-            {
-                return false;
-            }
+            var notify = !_lastRefusalUtc.TryGetValue(key, out var previousRefusal)
+                || now - previousRefusal >= _notificationQuietPeriod;
 
+            // Recorded on every refusal, not just the announced ones: this measures the gap since
+            // the last attempt, so an ongoing burst keeps extending and a lull always resets.
             PruneExpired(now);
-            _lastNotifiedUtc[key] = now;
-            return true;
+            _lastRefusalUtc[key] = now;
+
+            return notify;
         }
     }
 
     private void PruneExpired(DateTimeOffset now)
     {
-        if (_lastNotifiedUtc.Count == 0)
+        if (_lastRefusalUtc.Count == 0)
         {
             return;
         }
 
-        var expired = _lastNotifiedUtc
-            .Where(entry => now - entry.Value >= NotificationSuppressionWindow)
+        var expired = _lastRefusalUtc
+            .Where(entry => now - entry.Value >= _notificationQuietPeriod)
             .Select(entry => entry.Key)
             .ToList();
 
         foreach (var key in expired)
         {
-            _lastNotifiedUtc.Remove(key);
+            _lastRefusalUtc.Remove(key);
         }
     }
 }
