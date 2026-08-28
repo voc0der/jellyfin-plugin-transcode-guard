@@ -15,34 +15,41 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
 {
     private const string DefaultExecutable = "nvidia-smi";
 
-    // Denied HLS segment requests arrive in bursts. Reusing a very recent reading keeps the guard
-    // from spawning a process per retry while staying far shorter than any realistic VRAM swing.
-    private static readonly TimeSpan DefaultCacheWindow = TimeSpan.FromSeconds(1);
+    // Only FAILED lookups are ever reused, and only briefly.
+    //
+    // A successful reading decides whether a transcode launches, so it must always be fresh:
+    // reusing one would hand two transcodes arriving close together the same pre-allocation
+    // number and admit both - the contention this feature exists to prevent.
+    //
+    // A failed lookup cannot change any decision (the guard is fail-open either way), and it is
+    // the expensive case: without this, a hung nvidia-smi would cost every queued admission the
+    // full timeout in turn.
+    private static readonly TimeSpan DefaultFailureCacheWindow = TimeSpan.FromSeconds(1);
 
     private readonly ILogger<NvidiaSmiGpuMemoryProvider> _logger;
     private readonly Func<string> _executablePathAccessor;
-    private readonly TimeSpan _cacheWindow;
+    private readonly TimeSpan _failureCacheWindow;
     private readonly SemaphoreSlim _queryLock = new(1, 1);
     private readonly object _cacheLock = new();
 
-    private int _cachedGpuIndex = -1;
-    private GpuMemoryQueryResult _cachedResult;
-    private DateTimeOffset _cachedAtUtc = DateTimeOffset.MinValue;
+    private int _cachedFailureGpuIndex = -1;
+    private GpuMemoryQueryResult _cachedFailure;
+    private DateTimeOffset _cachedFailureAtUtc = DateTimeOffset.MinValue;
     private bool _disposed;
 
     public NvidiaSmiGpuMemoryProvider(ILogger<NvidiaSmiGpuMemoryProvider> logger)
-        : this(logger, () => Plugin.Instance?.Configuration.NvidiaSmiPath ?? string.Empty, DefaultCacheWindow)
+        : this(logger, () => Plugin.Instance?.Configuration.NvidiaSmiPath ?? string.Empty, DefaultFailureCacheWindow)
     {
     }
 
     internal NvidiaSmiGpuMemoryProvider(
         ILogger<NvidiaSmiGpuMemoryProvider> logger,
         Func<string> executablePathAccessor,
-        TimeSpan cacheWindow)
+        TimeSpan failureCacheWindow)
     {
         _logger = logger;
         _executablePathAccessor = executablePathAccessor;
-        _cacheWindow = cacheWindow;
+        _failureCacheWindow = failureCacheWindow;
     }
 
     /// <inheritdoc />
@@ -51,9 +58,9 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
         int timeoutMilliseconds,
         CancellationToken cancellationToken)
     {
-        if (TryReadCache(gpuIndex, out var cached))
+        if (TryReadCachedFailure(gpuIndex, out var cachedFailure))
         {
-            return cached;
+            return cachedFailure;
         }
 
         try
@@ -71,14 +78,17 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
 
         try
         {
-            // A burst of concurrent requests collapses onto the first query's result.
-            if (TryReadCache(gpuIndex, out cached))
+            // Re-check under the lock: a query that failed while this caller was queued spares it
+            // from repeating the same doomed (and possibly slow) lookup.
+            if (TryReadCachedFailure(gpuIndex, out cachedFailure))
             {
-                return cached;
+                return cachedFailure;
             }
 
+            // Serialised, so concurrent admissions each take their own reading in turn rather
+            // than spawning a process apiece.
             var result = await RunQueryAsync(gpuIndex, timeoutMilliseconds, cancellationToken).ConfigureAwait(false);
-            WriteCache(gpuIndex, result);
+            CacheFailure(gpuIndex, result);
             return result;
         }
         finally
@@ -87,15 +97,15 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
         }
     }
 
-    private bool TryReadCache(int gpuIndex, out GpuMemoryQueryResult result)
+    private bool TryReadCachedFailure(int gpuIndex, out GpuMemoryQueryResult result)
     {
         lock (_cacheLock)
         {
-            if (_cachedGpuIndex == gpuIndex
-                && _cacheWindow > TimeSpan.Zero
-                && DateTimeOffset.UtcNow - _cachedAtUtc < _cacheWindow)
+            if (_cachedFailureGpuIndex == gpuIndex
+                && _failureCacheWindow > TimeSpan.Zero
+                && DateTimeOffset.UtcNow - _cachedFailureAtUtc < _failureCacheWindow)
             {
-                result = _cachedResult;
+                result = _cachedFailure;
                 return true;
             }
         }
@@ -104,13 +114,22 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
         return false;
     }
 
-    private void WriteCache(int gpuIndex, GpuMemoryQueryResult result)
+    private void CacheFailure(int gpuIndex, GpuMemoryQueryResult result)
     {
         lock (_cacheLock)
         {
-            _cachedGpuIndex = gpuIndex;
-            _cachedResult = result;
-            _cachedAtUtc = DateTimeOffset.UtcNow;
+            if (result.Success)
+            {
+                // Never let a successful reading be served to a later admission, and drop any
+                // stale failure now that the GPU is answering again.
+                _cachedFailureGpuIndex = -1;
+                _cachedFailureAtUtc = DateTimeOffset.MinValue;
+                return;
+            }
+
+            _cachedFailureGpuIndex = gpuIndex;
+            _cachedFailure = result;
+            _cachedFailureAtUtc = DateTimeOffset.UtcNow;
         }
     }
 

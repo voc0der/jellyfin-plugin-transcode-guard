@@ -23,7 +23,7 @@ public class GpuResourceGuardTests
 
     private static GpuResourceGuard CreateGuard(
         PluginConfiguration config,
-        FakeGpuMemoryProvider provider,
+        IGpuMemoryProvider provider,
         RecordingClientMessageService messages)
     {
         return new GpuResourceGuard(
@@ -253,6 +253,59 @@ public class GpuResourceGuardTests
         await guard.IsAdmittedAsync(HardwareTranscodeRequest("device-2", "play-3"), CancellationToken.None);
 
         Assert.Equal(2, messages.SentMessages.Count);
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_StillDeniesWhenTheClientNotificationThrows()
+    {
+        // Jellyfin ultimately calls raw WebSocket.SendAsync for this path, which can raise an
+        // exception ClientMessageService does not catch. A failed popup must never become an
+        // admission for a transcode already judged unsafe.
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new ThrowingClientMessageService(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var guard = new GpuResourceGuard(
+            provider,
+            messages,
+            NullLogger<GpuResourceGuard>.Instance,
+            () => EnabledConfig(1500));
+
+        Assert.False(await guard.IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_TakesAFreshReadingForEveryAdmission()
+    {
+        // Two transcodes arriving close together must not share one pre-allocation reading:
+        // the second sees the memory the first consumed and is refused.
+        var provider = new SequencedGpuMemoryProvider(2500, 700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-1", "device-1", AliceId));
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+        var guard = CreateGuard(EnabledConfig(1500), provider, messages);
+
+        var first = await guard.IsAdmittedAsync(HardwareTranscodeRequest("device-1", "play-1"), CancellationToken.None);
+        var second = await guard.IsAdmittedAsync(HardwareTranscodeRequest("device-2", "play-2"), CancellationToken.None);
+
+        Assert.True(first);
+        Assert.False(second);
+        Assert.Equal(2, provider.QueryCount);
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_ConcurrentAdmissionsEachQueryTheGpu()
+    {
+        var provider = new SequencedGpuMemoryProvider(2500, 2500, 700, 700);
+        var messages = new RecordingClientMessageService();
+        var guard = CreateGuard(EnabledConfig(1500), provider, messages);
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 4)
+            .Select(index => guard.IsAdmittedAsync(
+                HardwareTranscodeRequest("device-" + index, "play-" + index),
+                CancellationToken.None)));
+
+        Assert.Equal(4, provider.QueryCount);
+        Assert.Equal(2, results.Count(admitted => admitted));
     }
 
     [Fact]

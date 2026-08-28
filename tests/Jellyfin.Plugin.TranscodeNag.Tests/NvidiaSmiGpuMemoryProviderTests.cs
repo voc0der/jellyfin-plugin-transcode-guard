@@ -73,8 +73,10 @@ public class NvidiaSmiGpuMemoryProviderTests
     }
 
     [Fact]
-    public async Task GetFreeMemoryAsync_CachesWithinTheWindowAndReQueriesForAnotherGpu()
+    public async Task GetFreeMemoryAsync_ReusesAFailureWithinTheWindow()
     {
+        // Failures cannot change a decision - the guard is fail-open either way - so reusing one
+        // only spares a queued admission from repeating a slow, doomed lookup.
         using var provider = Create("false", TimeSpan.FromMinutes(5));
 
         var first = await provider.GetFreeMemoryAsync(0, 5000, CancellationToken.None);
@@ -84,6 +86,71 @@ public class NvidiaSmiGpuMemoryProviderTests
         Assert.False(first.Success);
         Assert.Equal(first.FailureReason, second.FailureReason);
         Assert.False(otherGpu.Success);
+    }
+
+    [UnixFact]
+    public async Task GetFreeMemoryAsync_NeverServesASuccessfulReadingTwice()
+    {
+        // A successful reading decides whether a transcode launches. Reusing one would hand two
+        // transcodes arriving close together the same pre-allocation number and admit both.
+        var script = ScriptedNvidiaSmi("0, 2500");
+        try
+        {
+            using var provider = Create(script, TimeSpan.FromMinutes(5));
+
+            var first = await provider.GetFreeMemoryAsync(0, 5000, CancellationToken.None);
+            var second = await provider.GetFreeMemoryAsync(0, 5000, CancellationToken.None);
+
+            Assert.True(first.Success);
+            Assert.Equal(2500, first.FreeMiB);
+            Assert.True(second.Success);
+
+            // Two invocations of the stand-in binary, i.e. two real lookups.
+            Assert.Equal(2, File.ReadAllLines(script + ".calls").Length);
+        }
+        finally
+        {
+            File.Delete(script);
+            File.Delete(script + ".calls");
+        }
+    }
+
+    [UnixFact]
+    public async Task GetFreeMemoryAsync_ASuccessfulReadingClearsAnEarlierCachedFailure()
+    {
+        var script = ScriptedNvidiaSmi("0, 2500");
+        try
+        {
+            using var provider = Create(script, TimeSpan.FromMinutes(5));
+
+            Assert.True((await provider.GetFreeMemoryAsync(0, 5000, CancellationToken.None)).Success);
+            Assert.True((await provider.GetFreeMemoryAsync(0, 5000, CancellationToken.None)).Success);
+        }
+        finally
+        {
+            File.Delete(script);
+            File.Delete(script + ".calls");
+        }
+    }
+
+    /// <summary>
+    /// Writes an executable stand-in for nvidia-smi that prints fixed csv output and records
+    /// each invocation, so "was this a real lookup?" can be asserted.
+    /// </summary>
+    /// <param name="csvOutput">The line to emit on stdout.</param>
+    /// <returns>Path to the stand-in executable.</returns>
+    private static string ScriptedNvidiaSmi(string csvOutput)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "fake-nvidia-smi-" + Guid.NewGuid().ToString("N") + ".sh");
+        File.WriteAllText(path, $"#!/bin/sh\necho called >> \"{path}.calls\"\necho '{csvOutput}'\n");
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(
+                path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        return path;
     }
 
     [Fact]

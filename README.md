@@ -47,7 +47,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 - Lets you exclude users from all nags.
 - Includes a live session monitor in the plugin settings page.
 - Can broadcast an optional Message of the Day to users at login, with its own user exclusions and client filters.
-- Can refuse a hardware (NVIDIA) video transcode before FFmpeg starts when the GPU is out of memory, instead of letting it fail and retry.
+- Can refuse an NVIDIA hardware transcode before FFmpeg starts when free VRAM is below a threshold.
 
 ## Installation
 
@@ -87,35 +87,7 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 - Use **Manage Excluded Users** to opt users out of both playback and login nags.
 - Use the built-in live session monitor to see which active sessions currently match your rules.
 - Enable **Message of the Day** (off by default) to send an announcement to everyone at login. Its options stay collapsed until the toggle is on, and it has its own message, its own **Manage Excluded Users (MOTD)** list, and its own client include/exclude filters, all independent of the nag settings.
-- Enable **GPU resource guard** (off by default) to set a free-VRAM floor, the GPU index to watch, the nvidia-smi timeout and path, and the popup a refused client sees.
-
-## GPU Resource Guard
-
-When a GPU is shared with another workload, a second 4K hardware transcode can fail to allocate
-VRAM. Jellyfin's response is to launch FFmpeg, watch it die, and retry - several dead processes and
-a generic playback error for the user.
-
-With the guard enabled, Transcode Nag checks free VRAM at the moment Jellyfin is about to start
-FFmpeg and refuses the job if it is below your threshold. No FFmpeg process is created, the
-requesting client gets a **Transcoding unavailable** popup, and the server log carries one clear
-line naming the session, user, device, item, free VRAM, and threshold.
-
-**What is guarded.** Only jobs that both encode video (not a stream copy) and use the NVIDIA path -
-`-hwaccel cuda`, `*_nvenc`, `*_cuvid`, or CUDA/NPP filters. Direct Play, Direct Stream, container
-remuxing, audio-only transcodes, and CPU-only video transcodes are never refused. This is read from
-the FFmpeg command line Jellyfin has already built, so the plugin does not second-guess Jellyfin's
-own playback decision.
-
-**Fail-open.** If `nvidia-smi` is missing, times out, returns malformed output, or does not know the
-configured GPU index, the guard logs a warning and allows playback. It never denies on ignorance.
-
-**Requirements.** `nvidia-smi` must be runnable by the Jellyfin server process. In a container that
-means the NVIDIA container runtime. Set an explicit path in the settings if it is not on `PATH`.
-
-**Scope.** This is admission control, not a GPU scheduler. It never kills running transcodes,
-touches other GPU workloads, or changes transcoding quality. There is an unavoidable race between
-reading free VRAM and FFmpeg allocating it, so clearing the threshold is not a guarantee - the point
-is to refuse the failures that are predictable because VRAM is plainly exhausted.
+- Enable **GPU resource guard** (off by default) to set the GPU index, minimum free VRAM, nvidia-smi timeout and path, and the message a refused client sees. `nvidia-smi` must be runnable by the Jellyfin server process.
 
 ## Behavior Notes
 
@@ -124,6 +96,5 @@ is to refuse the failures that are predictable because VRAM is plainly exhausted
 - If a user returns to direct play after a bad transcode, login nags are suppressed until they regress again.
 - The MOTD is sent once per session at login and is unrelated to transcode history. Sessions that were already signed in when you enabled it receive nothing until they sign in again.
 - If a user qualifies for both the MOTD and a login nag, the nag waits for the MOTD to time out first, so clients that show one message at a time still display both.
-- A guard refusal returns HTTP 400 to the stream request - the same terminal answer Jellyfin gives when a user lacks video transcoding permission - so clients stop rather than retry.
-- Repeated attempts at the same refused stream are each refused, but the client popup and the warning log are de-duplicated for 10 seconds.
-- Freeing GPU memory restores normal playback on the next attempt. No setting change or restart is needed.
+- The GPU guard only refuses NVIDIA video transcodes. Direct Play, Direct Stream, remux, audio-only, and CPU transcodes are never refused, and playback is allowed whenever free VRAM cannot be read.
+- A refused stream returns HTTP 400 and starts no FFmpeg process. Freeing GPU memory restores playback on the next attempt, with no setting change or restart.

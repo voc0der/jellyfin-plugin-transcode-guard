@@ -103,7 +103,22 @@ public sealed class GpuResourceGuard
             return true;
         }
 
-        await DenyAsync(request, config, memory!.Value, cancellationToken).ConfigureAwait(false);
+        // The decision is made. Everything past this point is notification and logging, and none
+        // of it may reverse the refusal: an exception escaping here would reach the decorator's
+        // fail-open catch and admit the very transcode we just judged unsafe. ClientMessageService
+        // does not catch every failure Jellyfin's WebSocket send path can raise.
+        try
+        {
+            await DenyAsync(request, config, memory!.Value, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to notify the client about the refused GPU transcode of {ItemName}; the refusal still stands",
+                request.ItemName ?? "Unknown");
+        }
+
         return false;
     }
 

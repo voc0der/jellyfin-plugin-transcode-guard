@@ -1,3 +1,4 @@
+using System.Linq;
 using Jellyfin.Plugin.TranscodeNag.Gpu;
 using Jellyfin.Plugin.TranscodeNag.Messaging;
 using MediaBrowser.Controller.Session;
@@ -76,6 +77,62 @@ internal sealed class RecordingClientMessageService : IClientMessageService
         SentMessages.Add((session, command));
         return Task.FromResult(true);
     }
+}
+
+/// <summary>
+/// Returns a scripted sequence of readings, one per call, so concurrent admissions can be shown
+/// to each take their own reading rather than sharing one.
+/// </summary>
+internal sealed class SequencedGpuMemoryProvider : IGpuMemoryProvider
+{
+    private readonly Queue<GpuMemoryQueryResult> _readings;
+    private readonly GpuMemoryQueryResult _exhausted;
+
+    public SequencedGpuMemoryProvider(params int[] freeMiBReadings)
+    {
+        _readings = new Queue<GpuMemoryQueryResult>(freeMiBReadings.Select(GpuMemoryQueryResult.FromFreeMiB));
+        _exhausted = GpuMemoryQueryResult.Failed("no scripted reading left");
+    }
+
+    public int QueryCount { get; private set; }
+
+    public Task<GpuMemoryQueryResult> GetFreeMemoryAsync(
+        int gpuIndex,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        QueryCount++;
+        lock (_readings)
+        {
+            return Task.FromResult(_readings.Count > 0 ? _readings.Dequeue() : _exhausted);
+        }
+    }
+}
+
+/// <summary>
+/// Fails the way Jellyfin's raw WebSocket send path can: with an exception
+/// <see cref="ClientMessageService"/> does not catch.
+/// </summary>
+internal sealed class ThrowingClientMessageService : IClientMessageService
+{
+    private readonly SessionInfo _session;
+
+    public ThrowingClientMessageService(SessionInfo session)
+    {
+        _session = session;
+    }
+
+    public SessionInfo? ResolveSession(string? deviceId, Guid userId, Guid itemId) => _session;
+
+    public Task<bool> SendMessageAsync(
+        SessionInfo session,
+        MessageCommand command,
+        string context,
+        string detail,
+        bool enableLogging,
+        ILogger logger,
+        CancellationToken cancellationToken)
+        => throw new System.Net.WebSockets.WebSocketException("the remote party closed the connection");
 }
 
 internal static class TestSessions
