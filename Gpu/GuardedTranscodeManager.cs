@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Streaming;
 using Microsoft.Extensions.Logging;
 
@@ -71,7 +72,13 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
 
         if (!admitted)
         {
-            throw new ArgumentException(_guard.BuildRefusalReason());
+            // MediaBrowser.Controller.Net.SecurityException, specifically - NOT the BCL type of
+            // the same name. Jellyfin's ExceptionMiddleware has no "using System.Security", so the
+            // SecurityException in its switch is Jellyfin's own; throwing the BCL one falls through
+            // to 500 with a full stack trace. This one maps to HTTP 403 and is logged as a single
+            // line, which is what a policy refusal deserves - the guard has already logged the
+            // detail, and a 40-line trace per attempt made a working guard read as a crash.
+            throw new SecurityException(_guard.BuildRefusalReason());
         }
 
         return await _inner.StartFfMpeg(
