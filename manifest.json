@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-transcode-nag/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.31",
+        "changelog": "## What's Changed\n\n- fix(gpu): announce every re-open, suppress only the client's retry burst (7bdc1c6)\n- docs: update coverage badge to 51% [skip ci] (44c81cd)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-transcode-nag/compare/v1.0.1.30...v1.0.1.31\n",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-transcode-nag/releases/download/v1.0.1.31/Transcode_Nag_v1.0.1.31.zip",
+        "checksum": "8aa3fcbebe9b6a65d68cdf65dbc4b590",
+        "timestamp": "2026-08-28T17:11:30Z"
+      },
+      {
         "version": "1.0.1.30",
         "changelog": "## What's Changed\n\n- fix(gpu): one refusal popup per playback, not one per renegotiation (1be5b03)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-transcode-nag/compare/v1.0.1.29...v1.0.1.30\n",
         "targetAbi": "10.9.0.0",
