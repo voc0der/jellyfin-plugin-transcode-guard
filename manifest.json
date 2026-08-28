@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-transcode-nag/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.33",
+        "changelog": "## What's Changed\n\n- fix(gpu): stop logging a stack trace for every refusal (14334aa)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-transcode-nag/compare/v1.0.1.32...v1.0.1.33\n",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-transcode-nag/releases/download/v1.0.1.33/Transcode_Nag_v1.0.1.33.zip",
+        "checksum": "963dc4e20461813adaef3ea9837d7758",
+        "timestamp": "2026-08-28T21:57:48Z"
+      },
+      {
         "version": "1.0.1.32",
         "changelog": "## What's Changed\n\n- fix(gpu): calibrate the quiet period to jellyfin-web's actual retry timing (39ab060)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-transcode-nag/compare/v1.0.1.31...v1.0.1.32\n",
         "targetAbi": "10.9.0.0",
