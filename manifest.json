@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-transcode-nag/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.32",
+        "changelog": "## What's Changed\n\n- fix(gpu): calibrate the quiet period to jellyfin-web's actual retry timing (39ab060)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-transcode-nag/compare/v1.0.1.31...v1.0.1.32\n",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-transcode-nag/releases/download/v1.0.1.32/Transcode_Nag_v1.0.1.32.zip",
+        "checksum": "6c85ecb306edba0e8b31fbb5418010a1",
+        "timestamp": "2026-08-28T17:31:51Z"
+      },
+      {
         "version": "1.0.1.31",
         "changelog": "## What's Changed\n\n- fix(gpu): announce every re-open, suppress only the client's retry burst (7bdc1c6)\n- docs: update coverage badge to 51% [skip ci] (44c81cd)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-transcode-nag/compare/v1.0.1.30...v1.0.1.31\n",
         "targetAbi": "10.9.0.0",
