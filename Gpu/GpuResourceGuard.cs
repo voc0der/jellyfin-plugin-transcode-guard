@@ -22,16 +22,22 @@ namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 /// </remarks>
 public sealed class GpuResourceGuard
 {
-    // One press of play can produce several refusals: the client renegotiates from
-    // /Items/{id}/PlaybackInfo on failure, and Jellyfin mints a fresh PlaySessionId each time, so
-    // those retries are indistinguishable from a new request except by timing. They arrive
-    // back-to-back; a person who dismisses the error and presses play again does not.
+    // One press of play can produce several refusals. On a playback error jellyfin-web's
+    // playbackmanager falls back to progressively stricter transcode options, and each fallback
+    // is a fresh /Items/{id}/PlaybackInfo call, so Jellyfin mints a new PlaySessionId every time.
+    // Those retries are indistinguishable from a new request except by timing.
     //
-    // So this is a debounce on the gap between refusals, not a window from the first one. A burst
-    // collapses to a single popup however long it runs, and the moment the client stops hammering,
-    // the next refusal is announced again. A fixed window cannot do both: it either spams during
-    // the burst or goes silent on someone genuinely retrying.
-    private static readonly TimeSpan DefaultNotificationQuietPeriod = TimeSpan.FromSeconds(5);
+    // Timing separates them well, because the fallback delay is setTimeout(..., 100) and the
+    // chain is bounded - enablePlaybackRetryWithTranscoding stops once video and audio stream
+    // copy are both disallowed. A whole burst is therefore around three hops of ~100ms plus two
+    // round trips: comfortably under a second. A person dismissing the error dialog and pressing
+    // play again takes far longer.
+    //
+    // So this is a debounce on the gap between refusals, not a window from the first one: a burst
+    // collapses to one popup however long it runs, and any lull announces the next refusal. Three
+    // seconds leaves several times the headroom a real burst needs while still announcing a
+    // deliberate re-open.
+    private static readonly TimeSpan DefaultNotificationQuietPeriod = TimeSpan.FromSeconds(3);
 
     private const string DefaultDeniedHeader = "Transcoding unavailable";
     private const string DefaultDeniedMessage = "GPU resources are currently busy. Please try again later or use Direct Play.";

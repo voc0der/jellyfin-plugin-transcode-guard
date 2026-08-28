@@ -264,17 +264,39 @@ public class GpuResourceGuardTests
         var messages = new RecordingClientMessageService();
         messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
 
-        // hls.js backs off roughly 1s, 2s, 4s between manifest retries, so the whole burst from
-        // one press of play arrives inside the quiet period.
+        // jellyfin-web falls back with setTimeout(..., 100) per hop, so a real burst from one
+        // press of play is a few hundred milliseconds end to end.
         var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var guard = CreateGuard(EnabledConfig(1500), provider, messages, () => now);
 
-        foreach (var (playSessionId, afterSeconds) in new[] { ("play-2", 0), ("play-3", 1), ("play-4", 4) })
+        foreach (var (playSessionId, afterMs) in new[] { ("play-2", 0), ("play-3", 250), ("play-4", 400) })
         {
-            now = now.AddSeconds(afterSeconds);
+            now = now.AddMilliseconds(afterMs);
             Assert.False(await guard.IsAdmittedAsync(
                 HardwareTranscodeRequest("device-2", playSessionId),
                 CancellationToken.None));
+        }
+
+        Assert.Single(messages.SentMessages);
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_ASlowBurstStillCollapsesToOnePopup()
+    {
+        // Headroom check: even at four times the measured fallback delay, a burst is one popup.
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var guard = CreateGuard(EnabledConfig(1500), provider, messages, () => now);
+
+        for (var hop = 0; hop < 4; hop++)
+        {
+            now = now.AddMilliseconds(hop == 0 ? 0 : 1200);
+            await guard.IsAdmittedAsync(
+                HardwareTranscodeRequest("device-2", "hop-" + hop),
+                CancellationToken.None);
         }
 
         Assert.Single(messages.SentMessages);
@@ -314,9 +336,9 @@ public class GpuResourceGuardTests
         var guard = CreateGuard(EnabledConfig(1500), provider, messages, () => now);
 
         // Press play: one popup, and the client's two renegotiations stay quiet.
-        foreach (var afterSeconds in new[] { 0, 1, 4 })
+        foreach (var afterMs in new[] { 0, 250, 400 })
         {
-            now = now.AddSeconds(afterSeconds);
+            now = now.AddMilliseconds(afterMs);
             await guard.IsAdmittedAsync(HardwareTranscodeRequest("device-2", "burst"), CancellationToken.None);
         }
 
