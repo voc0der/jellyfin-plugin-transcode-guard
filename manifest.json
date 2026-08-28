@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-transcode-nag/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.30",
+        "changelog": "## What's Changed\n\n- fix(gpu): one refusal popup per playback, not one per renegotiation (1be5b03)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-transcode-nag/compare/v1.0.1.29...v1.0.1.30\n",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-transcode-nag/releases/download/v1.0.1.30/Transcode_Nag_v1.0.1.30.zip",
+        "checksum": "69499d2a2d95d1bb8e98f093a749c547",
+        "timestamp": "2026-08-28T17:01:33Z"
+      },
+      {
         "version": "1.0.1.29",
         "changelog": "## What's Changed\n\n- fix(gpu): never cache a cancelled request as a GPU failure (ecda975)\n- docs: say plainly in the settings page that the guard is NVIDIA only (1e2b38d)\n- refactor: address CodeQL readability alerts in the GPU guard (2cf9f57)\n- fix(gpu): never let notification or a cached reading undo a refusal (b7be867)\n- feat(gpu): refuse hardware transcodes before FFmpeg when VRAM is exhausted (8fa5373)\n- chore(deps): Bump github/codeql-action from 4.37.4 to 4.37.8 (8af0a9a)\n- chore(ci): notify centralized plugin catalog [skip ci] (b39abb6)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-transcode-nag/compare/v1.0.1.28...v1.0.1.29\n",
         "targetAbi": "10.9.0.0",
