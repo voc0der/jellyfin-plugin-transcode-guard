@@ -135,6 +135,52 @@ internal sealed class ThrowingClientMessageService : IClientMessageService
         => throw new System.Net.WebSockets.WebSocketException("the remote party closed the connection");
 }
 
+/// <summary>
+/// Holds every caller inside the query until all of them have arrived, so admissions genuinely
+/// overlap instead of completing one at a time as the test enumerates them.
+/// </summary>
+internal sealed class GatedGpuMemoryProvider : IGpuMemoryProvider
+{
+    private readonly int _expectedCallers;
+    private readonly Queue<GpuMemoryQueryResult> _readings;
+    private readonly TaskCompletionSource _allArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _arrived;
+
+    public GatedGpuMemoryProvider(int expectedCallers, params int[] freeMiBReadings)
+    {
+        _expectedCallers = expectedCallers;
+        _readings = new Queue<GpuMemoryQueryResult>(freeMiBReadings.Select(GpuMemoryQueryResult.FromFreeMiB));
+    }
+
+    public int QueryCount { get; private set; }
+
+    public async Task<GpuMemoryQueryResult> GetFreeMemoryAsync(
+        int gpuIndex,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        GpuMemoryQueryResult reading;
+
+        lock (_readings)
+        {
+            QueryCount++;
+            _arrived++;
+            reading = _readings.Count > 0
+                ? _readings.Dequeue()
+                : GpuMemoryQueryResult.Failed("no scripted reading left");
+
+            if (_arrived == _expectedCallers)
+            {
+                _allArrived.TrySetResult();
+            }
+        }
+
+        // Times out rather than hanging if the guard ever serialises admissions.
+        await _allArrived.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+        return reading;
+    }
+}
+
 internal static class TestSessions
 {
     /// <summary>

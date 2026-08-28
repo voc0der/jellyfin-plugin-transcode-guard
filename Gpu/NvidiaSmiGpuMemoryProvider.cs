@@ -91,6 +91,10 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
             CacheFailure(gpuIndex, result);
             return result;
         }
+        catch (OperationCanceledException)
+        {
+            return GpuMemoryQueryResult.Failed("the request was cancelled before the GPU could be queried");
+        }
         finally
         {
             _queryLock.Release();
@@ -116,17 +120,14 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
 
     private void CacheFailure(int gpuIndex, GpuMemoryQueryResult result)
     {
+        if (result.Success)
+        {
+            // A successful reading decides whether a transcode launches, so it is never reused.
+            return;
+        }
+
         lock (_cacheLock)
         {
-            if (result.Success)
-            {
-                // Never let a successful reading be served to a later admission, and drop any
-                // stale failure now that the GPU is answering again.
-                _cachedFailureGpuIndex = -1;
-                _cachedFailureAtUtc = DateTimeOffset.MinValue;
-                return;
-            }
-
             _cachedFailureGpuIndex = gpuIndex;
             _cachedFailure = result;
             _cachedFailureAtUtc = DateTimeOffset.UtcNow;
@@ -209,12 +210,16 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
 
             return GpuMemoryQueryResult.FromFreeMiB(freeMiB);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller's request went away. Let this travel past the caching layer: it says
+            // nothing about the GPU, and caching it would let the next admission skip its check.
+            throw;
+        }
         catch (OperationCanceledException)
         {
-            return GpuMemoryQueryResult.Failed(
-                cancellationToken.IsCancellationRequested
-                    ? "the request was cancelled before the GPU could be queried"
-                    : $"{executable} did not respond within {timeoutMilliseconds} ms");
+            // A genuine timeout. This one is worth caching - it is the expensive failure.
+            return GpuMemoryQueryResult.Failed($"{executable} did not respond within {timeoutMilliseconds} ms");
         }
         catch (InvalidOperationException ex)
         {

@@ -295,7 +295,9 @@ public class GpuResourceGuardTests
     [Fact]
     public async Task IsAdmittedAsync_ConcurrentAdmissionsEachQueryTheGpu()
     {
-        var provider = new SequencedGpuMemoryProvider(2500, 2500, 700, 700);
+        // The gate holds every admission inside its query until all four are in flight, so this
+        // is real overlap rather than four calls completing as Task.WhenAll enumerates them.
+        var provider = new GatedGpuMemoryProvider(4, 2500, 2500, 700, 700);
         var messages = new RecordingClientMessageService();
         var guard = CreateGuard(EnabledConfig(1500), provider, messages);
 

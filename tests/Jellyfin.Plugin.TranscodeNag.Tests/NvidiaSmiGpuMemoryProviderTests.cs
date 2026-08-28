@@ -116,15 +116,30 @@ public class NvidiaSmiGpuMemoryProviderTests
     }
 
     [UnixFact]
-    public async Task GetFreeMemoryAsync_ASuccessfulReadingClearsAnEarlierCachedFailure()
+    public async Task GetFreeMemoryAsync_DoesNotCacheACancelledRequestAsAGpuFailure()
     {
-        var script = ScriptedNvidiaSmi("0, 2500");
+        // A cancelled streaming request says nothing about the GPU. If its result were cached,
+        // the next admission would be handed a failure, fail open, and launch without ever
+        // reading VRAM. The long failure window makes that leak visible if it regresses.
+        var script = ScriptedNvidiaSmi("0, 2500", sleepSeconds: 1);
         try
         {
             using var provider = Create(script, TimeSpan.FromMinutes(5));
 
-            Assert.True((await provider.GetFreeMemoryAsync(0, 5000, CancellationToken.None)).Success);
-            Assert.True((await provider.GetFreeMemoryAsync(0, 5000, CancellationToken.None)).Success);
+            using var cancelled = new CancellationTokenSource();
+            var inFlight = provider.GetFreeMemoryAsync(0, 30000, cancelled.Token);
+            await Task.Delay(150);
+            await cancelled.CancelAsync();
+
+            var first = await inFlight;
+            Assert.False(first.Success);
+
+            // A different request must still get a real lookup.
+            var second = await provider.GetFreeMemoryAsync(0, 30000, CancellationToken.None);
+
+            Assert.True(second.Success);
+            Assert.Equal(2500, second.FreeMiB);
+            Assert.Equal(2, File.ReadAllLines(script + ".calls").Length);
         }
         finally
         {
@@ -138,11 +153,13 @@ public class NvidiaSmiGpuMemoryProviderTests
     /// each invocation, so "was this a real lookup?" can be asserted.
     /// </summary>
     /// <param name="csvOutput">The line to emit on stdout.</param>
+    /// <param name="sleepSeconds">How long to stall before answering, so a query can be cancelled mid-flight.</param>
     /// <returns>Path to the stand-in executable.</returns>
-    private static string ScriptedNvidiaSmi(string csvOutput)
+    private static string ScriptedNvidiaSmi(string csvOutput, int sleepSeconds = 0)
     {
         var path = Path.Combine(Path.GetTempPath(), "fake-nvidia-smi-" + Guid.NewGuid().ToString("N") + ".sh");
-        File.WriteAllText(path, $"#!/bin/sh\necho called >> \"{path}.calls\"\necho '{csvOutput}'\n");
+        var stall = sleepSeconds > 0 ? $"sleep {sleepSeconds}\n" : string.Empty;
+        File.WriteAllText(path, $"#!/bin/sh\necho called >> \"{path}.calls\"\n{stall}echo '{csvOutput}'\n");
         if (!OperatingSystem.IsWindows())
         {
             File.SetUnixFileMode(
