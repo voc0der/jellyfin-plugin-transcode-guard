@@ -9,9 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 
 /// <summary>
-/// Reads free VRAM by running nvidia-smi with a narrow machine-readable query.
+/// Reads free and per-process VRAM by running narrow, machine-readable nvidia-smi queries.
 /// </summary>
-public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
+public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IGpuProcessMemoryProvider, IDisposable
 {
     private const string DefaultExecutable = "nvidia-smi";
 
@@ -101,6 +101,43 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
         }
     }
 
+    async Task<GpuProcessMemoryQueryResult> IGpuProcessMemoryProvider.GetUsedMemoryAsync(
+        int processId,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        if (processId <= 0)
+        {
+            return GpuProcessMemoryQueryResult.Failed("the process ID is invalid");
+        }
+
+        try
+        {
+            await _queryLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return GpuProcessMemoryQueryResult.Failed("the process-memory query was cancelled");
+        }
+        catch (ObjectDisposedException)
+        {
+            return GpuProcessMemoryQueryResult.Failed("the plugin is shutting down");
+        }
+
+        try
+        {
+            return await RunProcessQueryAsync(processId, timeoutMilliseconds, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return GpuProcessMemoryQueryResult.Failed("the process-memory query was cancelled");
+        }
+        finally
+        {
+            _queryLock.Release();
+        }
+    }
+
     private bool TryReadCachedFailure(int gpuIndex, out GpuMemoryQueryResult result)
     {
         lock (_cacheLock)
@@ -141,8 +178,64 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
     {
         var configuredPath = _executablePathAccessor();
         var executable = string.IsNullOrWhiteSpace(configuredPath) ? DefaultExecutable : configuredPath.Trim();
+        var startInfo = CreateStartInfo(executable);
 
-        var startInfo = new ProcessStartInfo
+        // ArgumentList avoids any shell or quoting interpretation of these values.
+        startInfo.ArgumentList.Add("--query-gpu=index,memory.free");
+        startInfo.ArgumentList.Add("--format=csv,noheader,nounits");
+
+        var command = await RunCommandAsync(
+            startInfo,
+            executable,
+            timeoutMilliseconds,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!command.Success)
+        {
+            return GpuMemoryQueryResult.Failed(command.FailureReason!);
+        }
+
+        if (!NvidiaSmiOutputParser.TryGetFreeMiB(command.StandardOutput, gpuIndex, out var freeMiB))
+        {
+            return GpuMemoryQueryResult.Failed($"{executable} did not report a usable value for GPU {gpuIndex}");
+        }
+
+        return GpuMemoryQueryResult.FromFreeMiB(freeMiB);
+    }
+
+    private async Task<GpuProcessMemoryQueryResult> RunProcessQueryAsync(
+        int processId,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        var configuredPath = _executablePathAccessor();
+        var executable = string.IsNullOrWhiteSpace(configuredPath) ? DefaultExecutable : configuredPath.Trim();
+        var startInfo = CreateStartInfo(executable);
+        startInfo.ArgumentList.Add("--query-compute-apps=pid,used_gpu_memory");
+        startInfo.ArgumentList.Add("--format=csv,noheader,nounits");
+
+        var command = await RunCommandAsync(
+            startInfo,
+            executable,
+            timeoutMilliseconds,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!command.Success)
+        {
+            return GpuProcessMemoryQueryResult.Failed(command.FailureReason!);
+        }
+
+        if (!NvidiaSmiOutputParser.TryGetProcessUsedMiB(command.StandardOutput, processId, out var usedMiB))
+        {
+            return GpuProcessMemoryQueryResult.Failed(
+                $"{executable} did not report usable GPU memory for process {processId}");
+        }
+
+        return GpuProcessMemoryQueryResult.FromUsedMiB(usedMiB);
+    }
+
+    private static ProcessStartInfo CreateStartInfo(string executable)
+        => new()
         {
             FileName = executable,
             UseShellExecute = false,
@@ -151,9 +244,12 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
             RedirectStandardError = true
         };
 
-        // ArgumentList avoids any shell or quoting interpretation of these values.
-        startInfo.ArgumentList.Add("--query-gpu=index,memory.free");
-        startInfo.ArgumentList.Add("--format=csv,noheader,nounits");
+    private async Task<NvidiaSmiCommandResult> RunCommandAsync(
+        ProcessStartInfo startInfo,
+        string executable,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
 
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(Math.Max(1, timeoutMilliseconds));
@@ -164,21 +260,21 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
         {
             if (!process.Start())
             {
-                return GpuMemoryQueryResult.Failed($"{executable} could not be started");
+                return NvidiaSmiCommandResult.Failed($"{executable} could not be started");
             }
         }
         catch (Win32Exception ex)
         {
             // Covers "not found" and "permission denied" for the executable itself.
-            return GpuMemoryQueryResult.Failed($"{executable} is not available ({ex.Message})");
+            return NvidiaSmiCommandResult.Failed($"{executable} is not available ({ex.Message})");
         }
         catch (InvalidOperationException ex)
         {
-            return GpuMemoryQueryResult.Failed($"{executable} could not be started ({ex.Message})");
+            return NvidiaSmiCommandResult.Failed($"{executable} could not be started ({ex.Message})");
         }
         catch (PlatformNotSupportedException ex)
         {
-            return GpuMemoryQueryResult.Failed($"{executable} cannot be started on this platform ({ex.Message})");
+            return NvidiaSmiCommandResult.Failed($"{executable} cannot be started on this platform ({ex.Message})");
         }
 
         // Both pipes must be drained or the child can block on a full buffer. They are started
@@ -199,16 +295,11 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
 
             if (process.ExitCode != 0)
             {
-                return GpuMemoryQueryResult.Failed(
+                return NvidiaSmiCommandResult.Failed(
                     $"{executable} exited with code {process.ExitCode}{(stderr.Length == 0 ? string.Empty : ": " + FirstLine(stderr))}");
             }
 
-            if (!NvidiaSmiOutputParser.TryGetFreeMiB(stdout, gpuIndex, out var freeMiB))
-            {
-                return GpuMemoryQueryResult.Failed($"{executable} did not report a usable value for GPU {gpuIndex}");
-            }
-
-            return GpuMemoryQueryResult.FromFreeMiB(freeMiB);
+            return NvidiaSmiCommandResult.FromOutput(stdout);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -218,16 +309,17 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
         }
         catch (OperationCanceledException)
         {
-            // A genuine timeout. This one is worth caching - it is the expensive failure.
-            return GpuMemoryQueryResult.Failed($"{executable} did not respond within {timeoutMilliseconds} ms");
+            // A genuine timeout. The free-memory caller caches this expensive failure; the
+            // optional process-calibration caller simply reports it.
+            return NvidiaSmiCommandResult.Failed($"{executable} did not respond within {timeoutMilliseconds} ms");
         }
         catch (InvalidOperationException ex)
         {
-            return GpuMemoryQueryResult.Failed($"{executable} could not be read ({ex.Message})");
+            return NvidiaSmiCommandResult.Failed($"{executable} could not be read ({ex.Message})");
         }
         catch (IOException ex)
         {
-            return GpuMemoryQueryResult.Failed($"{executable} could not be read ({ex.Message})");
+            return NvidiaSmiCommandResult.Failed($"{executable} could not be read ({ex.Message})");
         }
         finally
         {
@@ -271,11 +363,23 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
         }
         catch (NotSupportedException ex)
         {
-            _logger.LogDebug(ex, "Unable to terminate {Executable}", executable);
+            BestEffort(() => _logger.LogDebug(ex, "Unable to terminate {Executable}", executable));
         }
         catch (Win32Exception ex)
         {
-            _logger.LogDebug(ex, "Unable to terminate {Executable}", executable);
+            BestEffort(() => _logger.LogDebug(ex, "Unable to terminate {Executable}", executable));
+        }
+    }
+
+    private static void BestEffort(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Diagnostic logging cannot make an otherwise handled process failure escape.
         }
     }
 
@@ -295,5 +399,17 @@ public sealed class NvidiaSmiGpuMemoryProvider : IGpuMemoryProvider, IDisposable
 
         _disposed = true;
         _queryLock.Dispose();
+    }
+
+    private readonly record struct NvidiaSmiCommandResult(
+        bool Success,
+        string? StandardOutput,
+        string? FailureReason)
+    {
+        internal static NvidiaSmiCommandResult FromOutput(string output)
+            => new(true, output, null);
+
+        internal static NvidiaSmiCommandResult Failed(string reason)
+            => new(false, null, reason);
     }
 }

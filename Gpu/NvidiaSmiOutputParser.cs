@@ -54,6 +54,55 @@ internal static class NvidiaSmiOutputParser
         return false;
     }
 
+    /// <summary>
+    /// Sums the used-memory rows attributed to one process. A process can appear once per GPU.
+    /// </summary>
+    internal static bool TryGetProcessUsedMiB(string? output, int processId, out int usedMiB)
+    {
+        usedMiB = 0;
+        if (processId <= 0 || string.IsNullOrWhiteSpace(output))
+        {
+            return false;
+        }
+
+        long totalMiB = 0;
+        var found = false;
+        var rows = output
+            .Split('\n')
+            .Select(rawLine => rawLine.Trim())
+            .Where(line => line.Contains(',', StringComparison.Ordinal));
+
+        foreach (var row in rows)
+        {
+            var separator = row.IndexOf(',', StringComparison.Ordinal);
+            if (!int.TryParse(
+                    row.AsSpan(0, separator).Trim(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var parsedProcessId)
+                || parsedProcessId != processId)
+            {
+                continue;
+            }
+
+            if (!TryParseFreeMiB(row.AsSpan(separator + 1), out var processMiB))
+            {
+                return false;
+            }
+
+            found = true;
+            totalMiB += processMiB;
+        }
+
+        if (!found)
+        {
+            return false;
+        }
+
+        usedMiB = (int)Math.Min(int.MaxValue, totalMiB);
+        return true;
+    }
+
     private static bool TryParseFreeMiB(ReadOnlySpan<char> value, out int freeMiB)
     {
         freeMiB = 0;

@@ -50,4 +50,25 @@ public class NvidiaSmiOutputParserTests
         Assert.True(NvidiaSmiOutputParser.TryGetFreeMiB("0, 2318, 24576", 0, out var free));
         Assert.Equal(2318, free);
     }
+
+    [Fact]
+    public void TryGetProcessUsedMiB_ReadsAndSumsTheRequestedProcess()
+    {
+        const string Output = "2378147, 1339\n3230507, 160\n2378147, 12\n";
+
+        Assert.True(NvidiaSmiOutputParser.TryGetProcessUsedMiB(Output, 2378147, out var usedMiB));
+        Assert.Equal(1351, usedMiB);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("2378147, [N/A]")]
+    [InlineData("2378147, -1")]
+    [InlineData("other, 1339")]
+    public void TryGetProcessUsedMiB_ReturnsFalseForUnusableOutput(string? output)
+    {
+        Assert.False(NvidiaSmiOutputParser.TryGetProcessUsedMiB(output, 2378147, out var usedMiB));
+        Assert.Equal(0, usedMiB);
+    }
 }

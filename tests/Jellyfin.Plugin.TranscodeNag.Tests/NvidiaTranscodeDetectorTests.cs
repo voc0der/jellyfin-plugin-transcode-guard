@@ -71,6 +71,49 @@ public class NvidiaTranscodeDetectorTests
         Assert.False(NvidiaTranscodeDetector.UsesNvidiaGpu(arguments));
     }
 
+    [Fact]
+    public void UsesNvidiaGpu_IsNotTrippedBySubtitlePathsInsideFilterGraphs()
+    {
+        const string arguments =
+            "-i in.mkv -vf \"subtitles=filename='/media/show_cuda.srt',scale=1280:720\" -c:v libx264 out.ts";
+
+        Assert.False(NvidiaTranscodeDetector.UsesNvidiaGpu(arguments));
+    }
+
+    [Theory]
+    [InlineData("-i in.mkv -filter:v:0 \"scale_cuda=1280:720\" -c:v libx264 out.ts")]
+    [InlineData("-i in.mkv -filter_complex \"[0:v]hwupload=derive_device=cuda[out]\" -c:v libx264 out.ts")]
+    [InlineData("-i in.mkv -vf \"hwmap=derive_device=cuda\" -c:v libx264 out.ts")]
+    public void UsesNvidiaGpu_DetectsQualifiedAndDerivedCudaFilters(string arguments)
+    {
+        Assert.True(NvidiaTranscodeDetector.UsesNvidiaGpu(arguments));
+    }
+
+    [Theory]
+    [InlineData("-init_hw_device cuda:2 -hwaccel cuda -i in.mkv -c:v h264_nvenc out.ts", 2)]
+    [InlineData("-init_hw_device cuda=cu:1 -filter_hw_device cu -i in.mkv -c:v h264_nvenc out.ts", 1)]
+    [InlineData("-hwaccel cuda -hwaccel_device 3 -i in.mkv -c:v libx264 out.ts", 3)]
+    [InlineData("-i in.mkv -c:v hevc_nvenc -gpu 4 out.ts", 4)]
+    public void Analyze_ExtractsTheSelectedGpuIndex(string arguments, int expectedGpuIndex)
+    {
+        var features = NvidiaTranscodeDetector.Analyze(arguments);
+
+        Assert.True(features.UsesGpu);
+        Assert.Equal(expectedGpuIndex, features.GpuIndex);
+        Assert.False(features.HasConflictingGpuIndices);
+    }
+
+    [Fact]
+    public void Analyze_FlagsConflictingGpuSelectors()
+    {
+        var features = NvidiaTranscodeDetector.Analyze(
+            "-init_hw_device cuda=cu:0 -hwaccel cuda -hwaccel_device 1 -i in.mkv -c:v h264_nvenc out.ts");
+
+        Assert.True(features.UsesGpu);
+        Assert.Null(features.GpuIndex);
+        Assert.True(features.HasConflictingGpuIndices);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

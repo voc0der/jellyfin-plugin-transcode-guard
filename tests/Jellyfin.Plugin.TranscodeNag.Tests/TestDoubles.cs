@@ -89,8 +89,13 @@ internal sealed class SequencedGpuMemoryProvider : IGpuMemoryProvider
     private readonly GpuMemoryQueryResult _exhausted;
 
     public SequencedGpuMemoryProvider(params int[] freeMiBReadings)
+        : this(freeMiBReadings.Select(GpuMemoryQueryResult.FromFreeMiB).ToArray())
     {
-        _readings = new Queue<GpuMemoryQueryResult>(freeMiBReadings.Select(GpuMemoryQueryResult.FromFreeMiB));
+    }
+
+    public SequencedGpuMemoryProvider(params GpuMemoryQueryResult[] readings)
+    {
+        _readings = new Queue<GpuMemoryQueryResult>(readings);
         _exhausted = GpuMemoryQueryResult.Failed("no scripted reading left");
     }
 
@@ -107,6 +112,134 @@ internal sealed class SequencedGpuMemoryProvider : IGpuMemoryProvider
             return Task.FromResult(_readings.Count > 0 ? _readings.Dequeue() : _exhausted);
         }
     }
+}
+
+/// <summary>
+/// Holds the first GPU query open so a second admission can be started while it is in flight.
+/// </summary>
+internal sealed class BlockingFirstGpuMemoryProvider : IGpuMemoryProvider
+{
+    private readonly GpuMemoryQueryResult _result;
+    private readonly TaskCompletionSource _firstQueryStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseFirstQuery = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _queryCount;
+
+    public BlockingFirstGpuMemoryProvider(int freeMiB)
+    {
+        _result = GpuMemoryQueryResult.FromFreeMiB(freeMiB);
+    }
+
+    public int QueryCount => Volatile.Read(ref _queryCount);
+
+    public Task FirstQueryStarted => _firstQueryStarted.Task;
+
+    public void ReleaseFirstQuery() => _releaseFirstQuery.TrySetResult();
+
+    public async Task<GpuMemoryQueryResult> GetFreeMemoryAsync(
+        int gpuIndex,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        var queryNumber = Interlocked.Increment(ref _queryCount);
+        if (queryNumber == 1)
+        {
+            _firstQueryStarted.TrySetResult();
+            await _releaseFirstQuery.Task.WaitAsync(cancellationToken);
+        }
+
+        return _result;
+    }
+}
+
+internal sealed class ObservingGpuMemoryProvider : IGpuMemoryProvider, IGpuProcessMemoryProvider
+{
+    private readonly Queue<GpuMemoryQueryResult> _freeReadings;
+    private readonly GpuProcessMemoryQueryResult _processReading;
+
+    public ObservingGpuMemoryProvider(int processUsedMiB, params int[] freeMiBReadings)
+    {
+        _freeReadings = new Queue<GpuMemoryQueryResult>(
+            freeMiBReadings.Select(GpuMemoryQueryResult.FromFreeMiB));
+        _processReading = GpuProcessMemoryQueryResult.FromUsedMiB(processUsedMiB);
+    }
+
+    public Task<GpuMemoryQueryResult> GetFreeMemoryAsync(
+        int gpuIndex,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        lock (_freeReadings)
+        {
+            return Task.FromResult(_freeReadings.Dequeue());
+        }
+    }
+
+    public Task<GpuProcessMemoryQueryResult> GetUsedMemoryAsync(
+        int processId,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_processReading);
+    }
+}
+
+internal sealed class DelayedObservingGpuMemoryProvider : IGpuMemoryProvider, IGpuProcessMemoryProvider
+{
+    private readonly Queue<GpuMemoryQueryResult> _freeReadings;
+    private readonly TaskCompletionSource _processQueryStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseProcessQuery = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public DelayedObservingGpuMemoryProvider(params int[] freeMiBReadings)
+    {
+        _freeReadings = new Queue<GpuMemoryQueryResult>(
+            freeMiBReadings.Select(GpuMemoryQueryResult.FromFreeMiB));
+    }
+
+    public Task ProcessQueryStarted => _processQueryStarted.Task;
+
+    public void ReleaseProcessQuery() => _releaseProcessQuery.TrySetResult();
+
+    public Task<GpuMemoryQueryResult> GetFreeMemoryAsync(
+        int gpuIndex,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        lock (_freeReadings)
+        {
+            return Task.FromResult(_freeReadings.Dequeue());
+        }
+    }
+
+    public async Task<GpuProcessMemoryQueryResult> GetUsedMemoryAsync(
+        int processId,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        _processQueryStarted.TrySetResult();
+        await _releaseProcessQuery.Task.WaitAsync(cancellationToken);
+        return GpuProcessMemoryQueryResult.FromUsedMiB(323);
+    }
+}
+
+/// <summary>
+/// A logger that violates the usual ILogger contract by throwing, used to prove diagnostic
+/// infrastructure cannot change a GPU admission decision.
+/// </summary>
+internal sealed class ThrowingLogger<T> : ILogger<T>
+{
+    public IDisposable? BeginScope<TState>(TState state)
+        where TState : notnull
+        => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter)
+        => throw new InvalidOperationException("logger failed");
 }
 
 /// <summary>
@@ -133,52 +266,6 @@ internal sealed class ThrowingClientMessageService : IClientMessageService
         ILogger logger,
         CancellationToken cancellationToken)
         => throw new System.Net.WebSockets.WebSocketException("the remote party closed the connection");
-}
-
-/// <summary>
-/// Holds every caller inside the query until all of them have arrived, so admissions genuinely
-/// overlap instead of completing one at a time as the test enumerates them.
-/// </summary>
-internal sealed class GatedGpuMemoryProvider : IGpuMemoryProvider
-{
-    private readonly int _expectedCallers;
-    private readonly Queue<GpuMemoryQueryResult> _readings;
-    private readonly TaskCompletionSource _allArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private int _arrived;
-
-    public GatedGpuMemoryProvider(int expectedCallers, params int[] freeMiBReadings)
-    {
-        _expectedCallers = expectedCallers;
-        _readings = new Queue<GpuMemoryQueryResult>(freeMiBReadings.Select(GpuMemoryQueryResult.FromFreeMiB));
-    }
-
-    public int QueryCount { get; private set; }
-
-    public async Task<GpuMemoryQueryResult> GetFreeMemoryAsync(
-        int gpuIndex,
-        int timeoutMilliseconds,
-        CancellationToken cancellationToken)
-    {
-        GpuMemoryQueryResult reading;
-
-        lock (_readings)
-        {
-            QueryCount++;
-            _arrived++;
-            reading = _readings.Count > 0
-                ? _readings.Dequeue()
-                : GpuMemoryQueryResult.Failed("no scripted reading left");
-
-            if (_arrived == _expectedCallers)
-            {
-                _allArrived.TrySetResult();
-            }
-        }
-
-        // Times out rather than hanging if the guard ever serialises admissions.
-        await _allArrived.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
-        return reading;
-    }
 }
 
 internal static class TestSessions

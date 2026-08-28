@@ -9,10 +9,9 @@ public class GpuAdmissionPolicyTests
         "-init_hw_device cuda=cu:0 -hwaccel cuda -hwaccel_output_format cuda -i \"/media/movie.mkv\" " +
         "-codec:v:0 av1_nvenc -codec:a:0 libfdk_aac";
 
-    private static PluginConfiguration EnabledConfig(int thresholdMiB = 1500) => new()
+    private static PluginConfiguration EnabledConfig() => new()
     {
         EnableGpuResourceGuard = true,
-        MinimumFreeGpuMemoryMiB = thresholdMiB,
         GpuIndex = 0
     };
 
@@ -24,7 +23,11 @@ public class GpuAdmissionPolicyTests
         Assert.False(GpuAdmissionPolicy.RequiresGpuQuery(config, requiresGpuVideoTranscode: true));
         Assert.Equal(
             GpuAdmissionOutcome.AllowedGuardDisabled,
-            GpuAdmissionPolicy.Evaluate(config, requiresGpuVideoTranscode: true, memory: null));
+            GpuAdmissionPolicy.Evaluate(
+                config,
+                requiresGpuVideoTranscode: true,
+                memory: null,
+                jobBudgetMiB: 1536));
     }
 
     [Fact]
@@ -80,7 +83,8 @@ public class GpuAdmissionPolicyTests
         var outcome = GpuAdmissionPolicy.Evaluate(
             EnabledConfig(),
             requiresGpuVideoTranscode: false,
-            memory: GpuMemoryQueryResult.FromFreeMiB(1));
+            memory: GpuMemoryQueryResult.FromFreeMiB(1),
+            jobBudgetMiB: 0);
 
         Assert.Equal(GpuAdmissionOutcome.AllowedNotGpuTranscode, outcome);
     }
@@ -89,9 +93,10 @@ public class GpuAdmissionPolicyTests
     public void Evaluate_SufficientVramAllows()
     {
         var outcome = GpuAdmissionPolicy.Evaluate(
-            EnabledConfig(1500),
+            EnabledConfig(),
             requiresGpuVideoTranscode: true,
-            memory: GpuMemoryQueryResult.FromFreeMiB(2500));
+            memory: GpuMemoryQueryResult.FromFreeMiB(1918),
+            jobBudgetMiB: 1536);
 
         Assert.Equal(GpuAdmissionOutcome.AllowedSufficientMemory, outcome);
     }
@@ -100,9 +105,10 @@ public class GpuAdmissionPolicyTests
     public void Evaluate_InsufficientVramDenies()
     {
         var outcome = GpuAdmissionPolicy.Evaluate(
-            EnabledConfig(1500),
+            EnabledConfig(),
             requiresGpuVideoTranscode: true,
-            memory: GpuMemoryQueryResult.FromFreeMiB(700));
+            memory: GpuMemoryQueryResult.FromFreeMiB(1400),
+            jobBudgetMiB: 1536);
 
         Assert.Equal(GpuAdmissionOutcome.Denied, outcome);
     }
@@ -111,9 +117,10 @@ public class GpuAdmissionPolicyTests
     public void Evaluate_ExactlyAtThresholdAllows()
     {
         var outcome = GpuAdmissionPolicy.Evaluate(
-            EnabledConfig(1500),
+            EnabledConfig(),
             requiresGpuVideoTranscode: true,
-            memory: GpuMemoryQueryResult.FromFreeMiB(1500));
+            memory: GpuMemoryQueryResult.FromFreeMiB(1536),
+            jobBudgetMiB: 1536);
 
         Assert.Equal(GpuAdmissionOutcome.AllowedSufficientMemory, outcome);
     }
@@ -124,7 +131,8 @@ public class GpuAdmissionPolicyTests
         var outcome = GpuAdmissionPolicy.Evaluate(
             EnabledConfig(),
             requiresGpuVideoTranscode: true,
-            memory: GpuMemoryQueryResult.Failed("nvidia-smi is not available"));
+            memory: GpuMemoryQueryResult.Failed("nvidia-smi is not available"),
+            jobBudgetMiB: 1536);
 
         Assert.Equal(GpuAdmissionOutcome.AllowedQueryFailed, outcome);
     }
@@ -135,7 +143,8 @@ public class GpuAdmissionPolicyTests
         var outcome = GpuAdmissionPolicy.Evaluate(
             EnabledConfig(),
             requiresGpuVideoTranscode: true,
-            memory: null);
+            memory: null,
+            jobBudgetMiB: 1536);
 
         Assert.Equal(GpuAdmissionOutcome.AllowedQueryFailed, outcome);
     }
@@ -147,7 +156,34 @@ public class GpuAdmissionPolicyTests
 
         Assert.False(config.EnableGpuResourceGuard);
         Assert.Equal(0, config.GpuIndex);
-        Assert.Equal(1500, config.MinimumFreeGpuMemoryMiB);
         Assert.Equal(1000, config.GpuCheckTimeoutMilliseconds);
+    }
+
+    [Fact]
+    public void Evaluate_InFlightBudgetPreventsTwoJobsSpendingTheSameReading()
+    {
+        var outcome = GpuAdmissionPolicy.Evaluate(
+            EnabledConfig(),
+            requiresGpuVideoTranscode: true,
+            memory: GpuMemoryQueryResult.FromFreeMiB(2000),
+            jobBudgetMiB: 1536,
+            inFlightBudgetMiB: 512);
+
+        Assert.Equal(GpuAdmissionOutcome.Denied, outcome);
+    }
+
+    [Theory]
+    [InlineData(1918, 1536)]
+    [InlineData(1089, 1024)]
+    [InlineData(573, 512)]
+    public void Evaluate_CoarseBudgetFitsObservedFreeVram(int freeMiB, int jobBudgetMiB)
+    {
+        var outcome = GpuAdmissionPolicy.Evaluate(
+            EnabledConfig(),
+            requiresGpuVideoTranscode: true,
+            memory: GpuMemoryQueryResult.FromFreeMiB(freeMiB),
+            jobBudgetMiB: jobBudgetMiB);
+
+        Assert.Equal(GpuAdmissionOutcome.AllowedSufficientMemory, outcome);
     }
 }

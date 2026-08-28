@@ -180,4 +180,27 @@ public class NvidiaSmiGpuMemoryProviderTests
 
         Assert.All(results, result => Assert.False(result.Success));
     }
+
+    [UnixFact]
+    public async Task GetUsedMemoryAsync_AttributesTheRequestedFfmpegProcess()
+    {
+        var script = ScriptedNvidiaSmi("2378147, 1339");
+        try
+        {
+            using var provider = Create(script);
+
+            var result = await ((IGpuProcessMemoryProvider)provider).GetUsedMemoryAsync(
+                2378147,
+                5000,
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal(1339, result.UsedMiB);
+        }
+        finally
+        {
+            File.Delete(script);
+            File.Delete(script + ".calls");
+        }
+    }
 }

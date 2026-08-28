@@ -21,9 +21,9 @@ namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 /// FFmpeg launches Jellyfin produces when CUDA cannot allocate.
 /// </para>
 /// <para>
-/// The refusal is an <see cref="ArgumentException"/>, which is exactly how Jellyfin itself refuses
-/// a video transcode a user lacks permission for, and which its exception middleware maps to
-/// HTTP 400 - a terminal answer rather than a retryable server error.
+/// The refusal uses Jellyfin's own <see cref="SecurityException"/>, which its exception middleware
+/// maps to HTTP 403 and logs without a stack trace. The BCL type with the same name does not match
+/// Jellyfin's middleware and must not be used here.
 /// </para>
 /// </remarks>
 public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
@@ -57,17 +57,22 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
         ArgumentNullException.ThrowIfNull(cancellationTokenSource);
 
         var admitted = true;
+        GpuTranscodeRequest? request = null;
+        GpuAdmissionReservation? reservation = null;
 
         try
         {
-            admitted = await _guard.IsAdmittedAsync(
-                BuildRequest(state, commandLineArguments, userId),
+            request = BuildRequest(state, outputPath, commandLineArguments, userId);
+            var attempt = await _guard.TryReserveAsync(
+                request,
                 cancellationTokenSource.Token).ConfigureAwait(false);
+            admitted = attempt.IsAdmitted;
+            reservation = attempt.Reservation;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not OperationCanceledException)
         {
             // A broken guard must never break playback.
-            _logger.LogError(ex, "GPU resource guard failed; allowing the transcode to proceed");
+            BestEffort(() => _logger.LogError(ex, "GPU resource guard failed; allowing the transcode to proceed"));
         }
 
         if (!admitted)
@@ -78,20 +83,68 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
             // to 500 with a full stack trace. This one maps to HTTP 403 and is logged as a single
             // line, which is what a policy refusal deserves - the guard has already logged the
             // detail, and a 40-line trace per attempt made a working guard read as a crash.
-            throw new SecurityException(_guard.BuildRefusalReason());
+            reservation?.Dispose();
+
+            string refusalReason;
+            try
+            {
+                refusalReason = _guard.BuildRefusalReason(request!);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // The denial is already final. Even configuration/log-message construction must
+                // not change Jellyfin's clean 403 into a noisy 500 or let FFmpeg launch.
+                BestEffort(() => _logger.LogError(ex, "Failed to build the GPU resource guard refusal reason"));
+                refusalReason = "Transcode Nag refused this hardware transcode: insufficient free GPU memory.";
+            }
+
+            throw new SecurityException(refusalReason);
         }
 
-        return await _inner.StartFfMpeg(
-            state,
-            outputPath,
-            commandLineArguments,
-            userId,
-            transcodingJobType,
-            cancellationTokenSource,
-            workingDirectory).ConfigureAwait(false);
+        try
+        {
+            var job = await _inner.StartFfMpeg(
+                state,
+                outputPath,
+                commandLineArguments,
+                userId,
+                transcodingJobType,
+                cancellationTokenSource,
+                workingDirectory).ConfigureAwait(false);
+            int? processId = null;
+            try
+            {
+                processId = job.Process?.Id;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                BestEffort(() => _logger.LogDebug(ex, "Could not read the launched FFmpeg process ID"));
+            }
+
+            if (reservation != null)
+            {
+                _ = reservation.MarkLaunched(processId, request);
+            }
+            return job;
+        }
+        catch
+        {
+            // StartFfMpeg can throw after it has created and started the process (for example while
+            // waiting for its first output). We cannot prove that no allocation exists, so retain
+            // the short race-window reservation rather than letting the next job spend it.
+            if (reservation != null)
+            {
+                _ = reservation.MarkLaunched();
+            }
+            throw;
+        }
     }
 
-    private static GpuTranscodeRequest BuildRequest(StreamState state, string commandLineArguments, Guid userId)
+    private static GpuTranscodeRequest BuildRequest(
+        StreamState state,
+        string outputPath,
+        string commandLineArguments,
+        Guid userId)
     {
         var request = state.Request;
 
@@ -101,12 +154,52 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
             IsVideoRequest = state.VideoRequest != null,
             OutputVideoCodec = state.OutputVideoCodec,
             CommandLineArguments = commandLineArguments,
+            SourceWidth = state.VideoStream?.Width,
+            SourceHeight = state.VideoStream?.Height,
+            SourceBitDepth = state.VideoStream?.BitDepth,
+            SourceCodec = state.VideoStream?.Codec,
+            SourceRefFrames = state.VideoStream?.RefFrames,
+            SourceFramerate = state.VideoStream?.ReferenceFrameRate
+                ?? state.VideoStream?.RealFrameRate
+                ?? state.VideoStream?.AverageFrameRate,
+            SourcePixelFormat = state.VideoStream?.PixelFormat,
+            SourceVideoRangeType = state.VideoStream?.VideoRangeType.ToString(),
+            // EncodingJobInfo derives these from Request; malformed or partially constructed
+            // states can have no request. Preserve fail-open behaviour by treating them as unknown.
+            OutputWidth = request == null ? null : state.OutputWidth,
+            OutputHeight = request == null ? null : state.OutputHeight,
+            OutputBitDepth = request == null ? null : state.TargetVideoBitDepth,
+            // TargetFramerate is only the requested cap and is often null. In that case the
+            // transcode retains the source rate, which still matters to surface pressure.
+            OutputFramerate = request == null
+                ? state.VideoStream?.ReferenceFrameRate
+                    ?? state.VideoStream?.RealFrameRate
+                    ?? state.VideoStream?.AverageFrameRate
+                : state.TargetFramerate
+                    ?? state.VideoStream?.ReferenceFrameRate
+                    ?? state.VideoStream?.RealFrameRate
+                    ?? state.VideoStream?.AverageFrameRate,
+            OutputRefFrames = request == null ? null : state.TargetRefFrames,
+            OutputPath = outputPath,
             DeviceId = request?.DeviceId,
             PlaySessionId = request?.PlaySessionId,
             UserId = userId,
             ItemId = request?.Id ?? Guid.Empty,
             ItemName = state.MediaSource?.Name
         };
+    }
+
+    private static void BestEffort(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A logger is diagnostic infrastructure. It must not change admission or fail-open
+            // semantics if a custom provider throws from ILogger.Log.
+        }
     }
 
     /// <inheritdoc />

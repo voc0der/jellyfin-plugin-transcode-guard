@@ -78,14 +78,9 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool EnableGpuResourceGuard { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets the zero-based NVIDIA GPU index the guard watches.
+    /// Gets or sets the fallback zero-based NVIDIA GPU index. An explicit FFmpeg selection wins.
     /// </summary>
     public int GpuIndex { get; set; } = 0;
-
-    /// <summary>
-    /// Gets or sets the free-VRAM floor, in MiB. Hardware video transcodes are refused below this value.
-    /// </summary>
-    public int MinimumFreeGpuMemoryMiB { get; set; } = 1500;
 
     /// <summary>
     /// Gets or sets how long the nvidia-smi query may run before it is abandoned.
