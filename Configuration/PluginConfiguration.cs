@@ -70,6 +70,43 @@ public class PluginConfiguration : BasePluginConfiguration
     public string[] MotdIncludedClientPatterns { get; set; } = Array.Empty<string>();
 
     public string[] MotdExcludedClientPatterns { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether GPU-backed video transcodes are refused when free VRAM is low.
+    /// Defaults to off so upgrading the plugin cannot change playback behaviour on its own.
+    /// </summary>
+    public bool EnableGpuResourceGuard { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the zero-based NVIDIA GPU index the guard watches.
+    /// </summary>
+    public int GpuIndex { get; set; } = 0;
+
+    /// <summary>
+    /// Gets or sets the free-VRAM floor, in MiB. Hardware video transcodes are refused below this value.
+    /// </summary>
+    public int MinimumFreeGpuMemoryMiB { get; set; } = 1500;
+
+    /// <summary>
+    /// Gets or sets how long the nvidia-smi query may run before it is abandoned.
+    /// </summary>
+    public int GpuCheckTimeoutMilliseconds { get; set; } = 1000;
+
+    /// <summary>
+    /// Gets or sets an explicit nvidia-smi path. Empty means resolve "nvidia-smi" from PATH.
+    /// </summary>
+    public string NvidiaSmiPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the popup title shown to a client whose transcode was refused.
+    /// </summary>
+    public string GpuGuardDeniedHeader { get; set; } = "Transcoding unavailable";
+
+    /// <summary>
+    /// Gets or sets the popup body shown to a client whose transcode was refused.
+    /// Deliberately free of VRAM figures, encoder names, and other server-side detail.
+    /// </summary>
+    public string GpuGuardDeniedMessage { get; set; } = "GPU resources are currently busy. Please try again later or use Direct Play.";
 }
 
 public class ReasonMessageOverride

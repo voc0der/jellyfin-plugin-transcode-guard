@@ -5,9 +5,9 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.TranscodeNag.Data;
+using Jellyfin.Plugin.TranscodeNag.Messaging;
 using Jellyfin.Plugin.TranscodeNag.Models;
 using MediaBrowser.Common.Configuration;
-using MediaBrowser.Common.Extensions;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
@@ -19,6 +19,7 @@ namespace Jellyfin.Plugin.TranscodeNag;
 public class PlaybackMonitor : IHostedService
 {
     private readonly ISessionManager _sessionManager;
+    private readonly IClientMessageService _clientMessageService;
     private readonly ILogger<PlaybackMonitor> _logger;
     private readonly TranscodeEventStore _eventStore;
     private readonly HashSet<string> _naggedPlaybacks = new();
@@ -45,11 +46,13 @@ public class PlaybackMonitor : IHostedService
 
     public PlaybackMonitor(
         ISessionManager sessionManager,
+        IClientMessageService clientMessageService,
         IApplicationPaths applicationPaths,
         ILogger<PlaybackMonitor> logger,
         ILogger<TranscodeEventStore> eventStoreLogger)
     {
         _sessionManager = sessionManager;
+        _clientMessageService = clientMessageService;
         _logger = logger;
         _eventStore = new TranscodeEventStore(applicationPaths, eventStoreLogger);
     }
@@ -64,6 +67,17 @@ public class PlaybackMonitor : IHostedService
         // (SessionControllerConnected covers fresh sessions once messages can be delivered.)
         _sessionPollTimer = new Timer(PollSessionsForReopen, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30));
         _logger.LogInformation("PlaybackMonitor started - listening for playback and session events");
+
+        // The guard is wired into Jellyfin's transcode manager at service-registration time, long
+        // before any logger exists. Surface a failed hookup here so it is not silent.
+        var decorationFailure = PluginServiceRegistrator.DecorationFailure;
+        if (decorationFailure != null)
+        {
+            _logger.LogWarning(
+                "GPU resource guard is not installed and will never refuse a transcode on this server ({Reason}). All other Transcode Nag features are unaffected.",
+                decorationFailure);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -363,143 +377,23 @@ public class PlaybackMonitor : IHostedService
             $"Reasons: {transcodeReasons}").ConfigureAwait(false);
     }
 
-    private async Task<bool> SendMessageCommandWithDiagnosticsAsync(
+    private Task<bool> SendMessageCommandWithDiagnosticsAsync(
         SessionInfo session,
         Configuration.PluginConfiguration config,
         MessageCommand command,
         string context,
         string detail)
     {
-        if (session.Id == null)
-        {
-            return false;
-        }
-
-        LogMessageDeliveryDiagnostics(session, config, context, detail);
-
-        // Jellyfin treats sending to an empty controller collection as a successful no-op.
-        // Do not report or persist that as a delivered message.
-        var (_, activeControllerCount, _) = GetSessionControllerStats(session);
-        if (activeControllerCount == 0)
-        {
-            return false;
-        }
-
-        try
-        {
-            await _sessionManager.SendMessageCommand(
-                null,
-                session.Id,
-                command,
-                CancellationToken.None).ConfigureAwait(false);
-
-            if (config.EnableLogging)
-            {
-                _logger.LogInformation(
-                    "Completed {Context} message send to session {SessionId}",
-                    context,
-                    session.Id);
-            }
-
-            return true;
-        }
-        catch (ResourceNotFoundException ex)
-        {
-            _logger.LogError(ex, "Error sending {Context} message to session {SessionId}", context, session.Id);
-        }
-        catch (ObjectDisposedException ex)
-        {
-            _logger.LogError(ex, "Error sending {Context} message to session {SessionId}", context, session.Id);
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogError(ex, "Error sending {Context} message to session {SessionId}", context, session.Id);
-        }
-        catch (OperationCanceledException ex)
-        {
-            _logger.LogError(ex, "Error sending {Context} message to session {SessionId}", context, session.Id);
-        }
-        catch (ArgumentException ex)
-        {
-            _logger.LogError(ex, "Error sending {Context} message to session {SessionId}", context, session.Id);
-        }
-
-        return false;
-    }
-
-    private void LogMessageDeliveryDiagnostics(
-        SessionInfo session,
-        Configuration.PluginConfiguration config,
-        string context,
-        string detail)
-    {
-        if (!config.EnableLogging)
-        {
-            return;
-        }
-
-        var (controllerCount, activeControllerCount, mediaControlControllerCount) = GetSessionControllerStats(session);
-        var supportedCommands = FormatSupportedCommands(session.SupportedCommands);
-        var supportsDisplayMessage = session.SupportedCommands?.Contains(GeneralCommandType.DisplayMessage) == true;
-
-        _logger.LogInformation(
-            "Sending {Context} message to session {SessionId} ({Client} {ApplicationVersion}) for user {UserName} on device {DeviceName} ({DeviceId}) - {Detail}; Controllers: {ControllerCount} total, {ActiveControllerCount} active, {MediaControlControllerCount} media-control; SupportsRemoteControl: {SupportsRemoteControl}; SupportsMediaControl: {SupportsMediaControl}; SupportsDisplayMessage: {SupportsDisplayMessage}; SupportedCommands: {SupportedCommands}",
+        // The logger is passed through so these diagnostics keep appearing under PlaybackMonitor's
+        // category rather than moving to the shared service.
+        return _clientMessageService.SendMessageAsync(
+            session,
+            command,
             context,
-            session.Id ?? "Unknown",
-            session.Client ?? "Unknown",
-            session.ApplicationVersion ?? "Unknown",
-            session.UserName ?? "Unknown",
-            session.DeviceName ?? "Unknown",
-            session.DeviceId ?? "Unknown",
             detail,
-            controllerCount,
-            activeControllerCount,
-            mediaControlControllerCount,
-            session.SupportsRemoteControl,
-            session.SupportsMediaControl,
-            supportsDisplayMessage,
-            supportedCommands);
-
-        if (controllerCount == 0 || activeControllerCount == 0)
-        {
-            _logger.LogWarning(
-                "{Context} target session {SessionId} has {ControllerCount} controller(s) and {ActiveControllerCount} active controller(s). Jellyfin may accept the command without any client receiving a popup; check WebSocket/reverse proxy/client session state.",
-                context,
-                session.Id ?? "Unknown",
-                controllerCount,
-                activeControllerCount);
-        }
-        else if (!supportsDisplayMessage)
-        {
-            _logger.LogWarning(
-                "{Context} target session {SessionId} does not advertise DisplayMessage support. The client may ignore the nag popup.",
-                context,
-                session.Id ?? "Unknown");
-        }
-    }
-
-    private static (int ControllerCount, int ActiveControllerCount, int MediaControlControllerCount) GetSessionControllerStats(SessionInfo session)
-    {
-        var controllers = session.SessionControllers;
-        if (controllers == null)
-        {
-            return (0, 0, 0);
-        }
-
-        return (
-            controllers.Count,
-            controllers.Count(controller => controller.IsSessionActive),
-            controllers.Count(controller => controller.SupportsMediaControl));
-    }
-
-    private static string FormatSupportedCommands(IReadOnlyList<GeneralCommandType>? supportedCommands)
-    {
-        if (supportedCommands == null || supportedCommands.Count == 0)
-        {
-            return "None";
-        }
-
-        return string.Join(", ", supportedCommands);
+            config.EnableLogging,
+            _logger,
+            CancellationToken.None);
     }
 
     private void RecordTranscodeEvent(SessionInfo session, TranscodingInfo transcodeInfo)
