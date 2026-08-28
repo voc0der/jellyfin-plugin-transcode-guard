@@ -33,6 +33,22 @@ public class GpuResourceGuardTests
             () => config);
     }
 
+    private static GpuResourceGuard CreateGuard(
+        PluginConfiguration config,
+        IGpuMemoryProvider provider,
+        RecordingClientMessageService messages,
+        Func<DateTimeOffset> clock,
+        TimeSpan? quietPeriod = null)
+    {
+        return new GpuResourceGuard(
+            provider,
+            messages,
+            NullLogger<GpuResourceGuard>.Instance,
+            () => config,
+            quietPeriod ?? TimeSpan.FromSeconds(5),
+            clock);
+    }
+
     private static GpuTranscodeRequest HardwareTranscodeRequest(
         string deviceId = "device-2",
         string playSessionId = "play-2")
@@ -247,18 +263,68 @@ public class GpuResourceGuardTests
         var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
         var messages = new RecordingClientMessageService();
         messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
-        var guard = CreateGuard(EnabledConfig(1500), provider, messages);
 
-        // A refused client renegotiates from /Items/{id}/PlaybackInfo, and Jellyfin mints a new
-        // PlaySessionId every time. Same device, same item, so it is still one refused playback.
-        foreach (var playSessionId in new[] { "play-2", "play-3", "play-4" })
+        // hls.js backs off roughly 1s, 2s, 4s between manifest retries, so the whole burst from
+        // one press of play arrives inside the quiet period.
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var guard = CreateGuard(EnabledConfig(1500), provider, messages, () => now);
+
+        foreach (var (playSessionId, afterSeconds) in new[] { ("play-2", 0), ("play-3", 1), ("play-4", 4) })
         {
+            now = now.AddSeconds(afterSeconds);
             Assert.False(await guard.IsAdmittedAsync(
                 HardwareTranscodeRequest("device-2", playSessionId),
                 CancellationToken.None));
         }
 
         Assert.Single(messages.SentMessages);
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_ReopeningTheVideoIsAnnouncedEveryTime()
+    {
+        // The complaint this replaces: nine deliberate re-opens produced one popup, because a
+        // fixed window swallowed everything after the first.
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var guard = CreateGuard(EnabledConfig(1500), provider, messages, () => now);
+
+        for (var attempt = 0; attempt < 9; attempt++)
+        {
+            now = now.AddSeconds(20);
+            Assert.False(await guard.IsAdmittedAsync(
+                HardwareTranscodeRequest("device-2", "play-" + attempt),
+                CancellationToken.None));
+        }
+
+        Assert.Equal(9, messages.SentMessages.Count);
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_ABurstFollowedByAReopenGetsExactlyTwoPopups()
+    {
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var guard = CreateGuard(EnabledConfig(1500), provider, messages, () => now);
+
+        // Press play: one popup, and the client's two renegotiations stay quiet.
+        foreach (var afterSeconds in new[] { 0, 1, 4 })
+        {
+            now = now.AddSeconds(afterSeconds);
+            await guard.IsAdmittedAsync(HardwareTranscodeRequest("device-2", "burst"), CancellationToken.None);
+        }
+
+        // Dismiss the error, press play again.
+        now = now.AddSeconds(10);
+        await guard.IsAdmittedAsync(HardwareTranscodeRequest("device-2", "reopen"), CancellationToken.None);
+
+        Assert.Equal(2, messages.SentMessages.Count);
     }
 
     [Fact]
