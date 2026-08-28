@@ -2,6 +2,7 @@ using Jellyfin.Plugin.TranscodeNag.Configuration;
 using Jellyfin.Plugin.TranscodeNag.Gpu;
 using Jellyfin.Plugin.TranscodeNag.Messaging;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Streaming;
 using MediaBrowser.Model.Dto;
 using Microsoft.Extensions.DependencyInjection;
@@ -134,7 +135,11 @@ public class GuardedTranscodeManagerTests
         var (decorator, inner, messages) = CreateDecorator(freeMiB: 700, thresholdMiB: 1500);
         using var cts = new CancellationTokenSource();
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => decorator.StartFfMpeg(
+        // Jellyfin's own SecurityException, not the BCL type of the same name: its exception
+        // middleware resolves the name against MediaBrowser.Controller.Net, maps this to HTTP 403,
+        // and logs it without a stack trace. Verified against a live 10.11.11 server - the BCL
+        // type falls through to 500 with a full trace.
+        var ex = await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
             CreateHardwareVideoState(),
             "/config/transcodes/abc.m3u8",
             CudaNvencArguments,
@@ -142,8 +147,7 @@ public class GuardedTranscodeManagerTests
             TranscodingJobType.Hls,
             cts));
 
-        // ArgumentException is what Jellyfin's exception middleware maps to HTTP 400, the same
-        // terminal answer it gives when a user lacks video transcoding permission.
+        Assert.Equal("MediaBrowser.Controller.Net.SecurityException", ex.GetType().FullName);
         Assert.Contains("free GPU memory", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, inner.StartFfMpegCallCount);
         Assert.Single(messages.SentMessages);
