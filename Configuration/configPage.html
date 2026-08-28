@@ -179,8 +179,10 @@
 
                     <h2>GPU Resource Guard</h2>
                     <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Refuses an NVIDIA hardware video transcode before FFmpeg is launched when the GPU is short
-                        on memory, so a doomed transcode fails once and clearly instead of retrying. NVIDIA only:
+                        Gives each NVIDIA hardware video transcode a conservative VRAM budget based on its source,
+                        filters, and output, then refuses it before FFmpeg launches when that budget will not fit.
+                        This allows small jobs to use gaps that a fixed free-memory threshold would waste while
+                        keeping expensive 4K/HDR jobs out when they are unlikely to fit. NVIDIA only:
                         QSV, VAAPI, and VideoToolbox transcodes are never refused. Requires <code>nvidia-smi</code>
                         to be reachable from the Jellyfin server process.
                     </div>
@@ -190,20 +192,14 @@
                             <input type="checkbox" is="emby-checkbox" id="chkEnableGpuResourceGuard" name="chkEnableGpuResourceGuard" />
                             <span>Enable GPU resource guard</span>
                         </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. If free GPU memory cannot be read, playback is always allowed.</div>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. The budget is automatic; if free GPU memory cannot be read, playback is always allowed.</div>
                     </div>
 
                     <div id="gpuGuardOptions" style="display: none;">
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtGpuIndex">GPU index:</label>
                             <input type="number" id="txtGpuIndex" name="txtGpuIndex" min="0" max="15" class="emby-input" />
-                            <div class="fieldDescription">Zero-based index of the NVIDIA GPU to watch, as reported by nvidia-smi.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtMinimumFreeGpuMemoryMiB">Minimum free GPU memory (MiB):</label>
-                            <input type="number" id="txtMinimumFreeGpuMemoryMiB" name="txtMinimumFreeGpuMemoryMiB" min="0" max="131072" class="emby-input" />
-                            <div class="fieldDescription">NVIDIA hardware video transcoding is refused when available GPU memory is below this value. Direct Play and other non-GPU playback are unaffected.</div>
+                            <div class="fieldDescription">Fallback zero-based NVIDIA GPU index. When FFmpeg explicitly selects a GPU, the guard automatically checks that device instead.</div>
                         </div>
 
                         <div class="inputContainer">
@@ -951,7 +947,6 @@
                     document.getElementById('txtMotdExcludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdExcludedClientPatterns);
                     document.getElementById('chkEnableGpuResourceGuard').checked = config.EnableGpuResourceGuard === true;
                     document.getElementById('txtGpuIndex').value = GpuGuardSection.numberOrDefault(config.GpuIndex, 0);
-                    document.getElementById('txtMinimumFreeGpuMemoryMiB').value = GpuGuardSection.numberOrDefault(config.MinimumFreeGpuMemoryMiB, 1500);
                     document.getElementById('txtGpuCheckTimeoutMs').value = GpuGuardSection.numberOrDefault(config.GpuCheckTimeoutMilliseconds, 1000);
                     document.getElementById('txtNvidiaSmiPath').value = config.NvidiaSmiPath || '';
                     document.getElementById('txtGpuGuardDeniedHeader').value = config.GpuGuardDeniedHeader || '';
@@ -987,7 +982,6 @@
                     config.MotdExcludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdExcludedClientPatterns').value);
                     config.EnableGpuResourceGuard = document.getElementById('chkEnableGpuResourceGuard').checked;
                     config.GpuIndex = GpuGuardSection.readNumber('txtGpuIndex', 0);
-                    config.MinimumFreeGpuMemoryMiB = GpuGuardSection.readNumber('txtMinimumFreeGpuMemoryMiB', 1500);
                     config.GpuCheckTimeoutMilliseconds = GpuGuardSection.readNumber('txtGpuCheckTimeoutMs', 1000);
                     config.NvidiaSmiPath = document.getElementById('txtNvidiaSmiPath').value.trim();
                     config.GpuGuardDeniedHeader = document.getElementById('txtGpuGuardDeniedHeader').value;

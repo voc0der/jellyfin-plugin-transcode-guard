@@ -14,13 +14,13 @@ internal enum GpuAdmissionOutcome
     /// <summary>Direct Play, remux/stream copy, or audio-only - no GPU video encode involved.</summary>
     AllowedNotGpuTranscode,
 
-    /// <summary>Free VRAM is at or above the configured floor.</summary>
+    /// <summary>The pending job's conservative VRAM requirement fits in the currently free memory.</summary>
     AllowedSufficientMemory,
 
     /// <summary>Free VRAM could not be determined; the guard is fail-open.</summary>
     AllowedQueryFailed,
 
-    /// <summary>Free VRAM is below the configured floor.</summary>
+    /// <summary>The pending job's VRAM budget does not fit in the currently free memory.</summary>
     Denied
 }
 
@@ -57,7 +57,7 @@ internal static class GpuAdmissionPolicy
     }
 
     /// <summary>
-    /// Applies the configured threshold to a free-VRAM reading.
+    /// Checks whether the pending job and any admitted-but-not-yet-visible jobs fit in free VRAM.
     /// </summary>
     /// <param name="config">Plugin configuration.</param>
     /// <param name="requiresGpuVideoTranscode">Result of <see cref="RequiresGpuVideoTranscode"/>.</param>
@@ -66,7 +66,9 @@ internal static class GpuAdmissionPolicy
     internal static GpuAdmissionOutcome Evaluate(
         PluginConfiguration config,
         bool requiresGpuVideoTranscode,
-        GpuMemoryQueryResult? memory)
+        GpuMemoryQueryResult? memory,
+        int jobBudgetMiB,
+        int inFlightBudgetMiB = 0)
     {
         ArgumentNullException.ThrowIfNull(config);
 
@@ -86,9 +88,23 @@ internal static class GpuAdmissionPolicy
             return GpuAdmissionOutcome.AllowedQueryFailed;
         }
 
-        return reading.FreeMiB >= config.MinimumFreeGpuMemoryMiB
+        var requiredMiB = RequiredMemoryMiB(jobBudgetMiB, inFlightBudgetMiB);
+
+        return reading.FreeMiB >= requiredMiB
             ? GpuAdmissionOutcome.AllowedSufficientMemory
             : GpuAdmissionOutcome.Denied;
+    }
+
+    /// <summary>
+    /// Gets the free VRAM required to admit a job, including pending jobs.
+    /// Each individual budget already contains margin and is rounded up to 256 MiB.
+    /// </summary>
+    internal static int RequiredMemoryMiB(int jobBudgetMiB, int inFlightBudgetMiB = 0)
+    {
+        var required = (long)Math.Max(0, jobBudgetMiB)
+            + Math.Max(0, inFlightBudgetMiB);
+
+        return (int)Math.Min(int.MaxValue, required);
     }
 
     /// <summary>

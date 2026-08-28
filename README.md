@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/github/v/release/voc0der/jellyfin-transcode-nag?label=stable%20release" alt="Stable release version" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-transcode-nag/tree/main/tests">
-    <img src="https://img.shields.io/badge/coverage-51%25-yellow" alt="Code coverage percentage" />
+    <img src="https://img.shields.io/badge/coverage-65%25-yellowgreen" alt="Code coverage percentage" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-transcode-nag/issues">
     <img src="https://img.shields.io/github/issues/voc0der/jellyfin-transcode-nag?color=DAA520" alt="Open issues" />
@@ -47,7 +47,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 - Lets you exclude users from all nags.
 - Includes a live session monitor in the plugin settings page.
 - Can broadcast an optional Message of the Day to users at login, with its own user exclusions and client filters.
-- Can refuse an NVIDIA hardware transcode before FFmpeg starts when free VRAM is below a threshold.
+- Can refuse an NVIDIA hardware transcode before FFmpeg starts when that job's conservative VRAM budget will not fit.
 
 ## Installation
 
@@ -87,7 +87,7 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 - Use **Manage Excluded Users** to opt users out of both playback and login nags.
 - Use the built-in live session monitor to see which active sessions currently match your rules.
 - Enable **Message of the Day** (off by default) to send an announcement to everyone at login. Its options stay collapsed until the toggle is on, and it has its own message, its own **Manage Excluded Users (MOTD)** list, and its own client include/exclude filters, all independent of the nag settings.
-- Enable **GPU resource guard** (off by default) to set the GPU index, minimum free VRAM, nvidia-smi timeout and path, and the message a refused client sees. `nvidia-smi` must be runnable by the Jellyfin server process.
+- Enable **GPU resource guard** (off by default) to set the fallback GPU index, nvidia-smi timeout and path, and the message a refused client sees. The guard reads current free memory immediately before launch and automatically budgets each job from its source, CUDA filters, and output instead of using a fixed free-VRAM threshold. An explicit GPU selected by FFmpeg overrides the fallback index. `nvidia-smi` must be runnable by the Jellyfin server process.
 
 ## Behavior Notes
 
@@ -97,4 +97,5 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 - The MOTD is sent once per session at login and is unrelated to transcode history. Sessions that were already signed in when you enabled it receive nothing until they sign in again.
 - If a user qualifies for both the MOTD and a login nag, the nag waits for the MOTD to time out first, so clients that show one message at a time still display both.
 - The GPU guard only refuses NVIDIA video transcodes. Direct Play, Direct Stream, remux, audio-only, and CPU transcodes are never refused, and playback is allowed whenever free VRAM cannot be read.
-- A refused stream returns HTTP 400 and starts no FFmpeg process. Freeing GPU memory restores playback on the next attempt, with no setting change or restart.
+- After launch, the guard samples `nvidia-smi`'s per-process memory for the FFmpeg PID. Successful samples are logged with the job shape and budget for MiB-level calibration; if container PID namespaces prevent attribution, admission still works and the temporary reservation simply expires on its timer.
+- A refused stream returns HTTP 403 and starts no FFmpeg process. Freeing GPU memory restores playback on the next attempt, with no setting change or restart.
