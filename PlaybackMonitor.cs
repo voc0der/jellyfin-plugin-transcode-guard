@@ -319,28 +319,24 @@ public class PlaybackMonitor : IHostedService
         var transcodeInfo = session.TranscodingInfo;
         var overrides = config.ReasonMessageOverrides;
 
-        if (transcodeInfo != null && overrides != null && overrides.Length > 0 && config.AlertTranscodeReasons != null)
+        if (transcodeInfo == null || overrides == null || overrides.Length == 0 || config.AlertTranscodeReasons == null)
         {
-            var activeReasons = transcodeInfo.TranscodeReasons;
-            var matchedReasons = config.AlertTranscodeReasons
-                .Where(reasonName => !string.IsNullOrWhiteSpace(reasonName))
-                .Where(reasonName => Enum.TryParse<TranscodeReason>(reasonName, true, out var parsedReason)
-                    && (activeReasons & parsedReason) != 0);
-
-            foreach (var reasonName in matchedReasons)
-            {
-                var overrideEntry = overrides.FirstOrDefault(entry => entry != null
-                    && string.Equals(entry.ReasonName, reasonName, StringComparison.OrdinalIgnoreCase)
-                    && !string.IsNullOrWhiteSpace(entry.Message));
-
-                if (overrideEntry != null)
-                {
-                    return overrideEntry.Message;
-                }
-            }
+            return config.NagMessage;
         }
 
-        return config.NagMessage;
+        var activeReasons = transcodeInfo.TranscodeReasons;
+
+        // First override configured for an active reason wins; reason order sets the priority.
+        var overrideMatch = config.AlertTranscodeReasons
+            .Where(reasonName => !string.IsNullOrWhiteSpace(reasonName))
+            .Where(reasonName => Enum.TryParse<TranscodeReason>(reasonName, true, out var parsedReason)
+                && (activeReasons & parsedReason) != 0)
+            .SelectMany(reasonName => overrides.Where(entry => entry != null
+                && string.Equals(entry.ReasonName, reasonName, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(entry.Message)))
+            .FirstOrDefault();
+
+        return overrideMatch?.Message ?? config.NagMessage;
     }
 
     private async Task<bool> SendNagMessageAsync(SessionInfo session, Configuration.PluginConfiguration config)
