@@ -7,9 +7,17 @@ namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 /// Assigns a conservative NVIDIA video-memory requirement to one FFmpeg transcode.
 /// </summary>
 /// <remarks>
-/// The bands are calibrated against observed jobs on an RTX 4000 Ada: about 390 MiB for a small
-/// show transcode, 824 MiB for a 4K Main10 HDR transcode without tone mapping, and 1339-1496 MiB
-/// for a filter-heavier 4K job. The result deliberately has 256 MiB granularity.
+/// The bands come from nvidia-smi process rows on an RTX 4000 Ada: about 390 MiB for a small show
+/// transcode, 824 MiB for a 4K Main10 HDR transcode without tone mapping, and 1339-1381 MiB for a
+/// 4K HDR job tone mapped to AV1.
+/// <para>
+/// A band is a measurement plus a stated margin, and the margin is the part worth arguing with.
+/// It was previously invisible: 824 MiB of measurement was banded to 1024, which reads like
+/// rounding but is a 24% markup on a number that decides whether playback happens. Compounded with
+/// the tone-map band it refused a 4K HDR job budgeted at 1536 MiB on a card with 1490 MiB free -
+/// a job later measured, running, at 1381 MiB. A budget above what the job provably uses is not
+/// conservatism, it is a wrong answer that happens to fail safe.
+/// </para>
 /// </remarks>
 internal static class GpuVramEstimator
 {
@@ -19,6 +27,25 @@ internal static class GpuVramEstimator
     private const long FullHdPixels = 1920L * 1080;
     private const long QuadHdPixels = 2560L * 1440;
     private const long UltraHdPixels = 3840L * 2160;
+
+    // 824 MiB measured for 4K Main10 HDR without tone mapping, plus roughly 9% margin. The band it
+    // replaces was 1024, which put a tone-mapped 4K job at 1536 MiB - 155 MiB above the 1381 MiB
+    // that same job was measured using while it played.
+    private const int UltraHd10BitBudgetMiB = 896;
+
+    // The measured tone-map delta is 1381 - 824 = 557 MiB. This band is deliberately *under* that:
+    // the 10-bit base above already carries the margin for the whole pipeline, and stacking a
+    // padded surcharge on a padded base is what produced 1536.
+    private const int UltraHdTonemapSurchargeMiB = 512;
+
+    // No direct measurement for 4K 8-bit. It is bounded above by the 10-bit figure, so it keeps the
+    // band it had rather than inventing a number.
+    private const int UltraHd8BitBudgetMiB = 768;
+
+    // Unknown source metadata is charged the heaviest shape that has actually been measured - 4K
+    // 10-bit with tone mapping - and no more. Charging an unmeasured job above every measured one
+    // is how the padding got in.
+    private const int UnknownSourceFloorMiB = UltraHd10BitBudgetMiB + UltraHdTonemapSurchargeMiB;
 
     /// <summary>
     /// Budgets VRAM for a job from Jellyfin's completed transcode description.
@@ -77,8 +104,8 @@ internal static class GpuVramEstimator
         if (features.UsesTonemap)
         {
             pipelinePressureMiB = largestFramePixels > UltraHdPixels
-                ? ScaleAndRoundUp(512, largestFramePixels, UltraHdPixels)
-                : largestFramePixels > QuadHdPixels ? 512 : 256;
+                ? ScaleAndRoundUp(UltraHdTonemapSurchargeMiB, largestFramePixels, UltraHdPixels)
+                : largestFramePixels > QuadHdPixels ? UltraHdTonemapSurchargeMiB : 256;
         }
 
         if (features.UsesOtherFilters)
@@ -112,7 +139,7 @@ internal static class GpuVramEstimator
         budgetMiB += pipelinePressureMiB;
         if (usedSourceFallback)
         {
-            budgetMiB = Math.Max(1536, budgetMiB);
+            budgetMiB = Math.Max(UnknownSourceFloorMiB, budgetMiB);
         }
 
         budgetMiB = Math.Clamp(budgetMiB, 512, int.MaxValue);
@@ -142,11 +169,11 @@ internal static class GpuVramEstimator
         }
         else if (largestFramePixels <= UltraHdPixels)
         {
-            budgetMiB = largestBitDepth > 8 ? 1024 : 768;
+            budgetMiB = largestBitDepth > 8 ? UltraHd10BitBudgetMiB : UltraHd8BitBudgetMiB;
         }
         else
         {
-            var ultraHdBudgetMiB = largestBitDepth > 8 ? 1024 : 768;
+            var ultraHdBudgetMiB = largestBitDepth > 8 ? UltraHd10BitBudgetMiB : UltraHd8BitBudgetMiB;
             budgetMiB = ScaleAndRoundUp(ultraHdBudgetMiB, largestFramePixels, UltraHdPixels);
         }
 

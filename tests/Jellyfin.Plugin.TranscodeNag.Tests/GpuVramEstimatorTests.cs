@@ -40,7 +40,7 @@ public class GpuVramEstimatorTests
     }
 
     [Fact]
-    public void Estimate_4kHdrTonemapUsesOneAndAHalfGiBBudget()
+    public void Estimate_4kHdrTonemapMatchesThe1381MiBMeasurement()
     {
         var request = VideoRequest();
         request.CommandLineArguments = TonemapArguments;
@@ -54,7 +54,7 @@ public class GpuVramEstimatorTests
 
         var estimate = GpuVramEstimator.Estimate(request);
 
-        Assert.Equal(1536, estimate.BudgetMiB);
+        Assert.Equal(1408, estimate.BudgetMiB);
         Assert.True(estimate.UsesTonemap);
     }
 
@@ -74,7 +74,7 @@ public class GpuVramEstimatorTests
 
         var estimate = GpuVramEstimator.Estimate(request);
 
-        Assert.Equal(1536, estimate.BudgetMiB);
+        Assert.Equal(1408, estimate.BudgetMiB);
         Assert.True(estimate.UsedFallbackMetadata);
     }
 
@@ -95,11 +95,11 @@ public class GpuVramEstimatorTests
         request.OutputRefFrames = null;
         request.OutputFramerate = null;
 
-        Assert.Equal(1536, GpuVramEstimator.Estimate(request).BudgetMiB);
+        Assert.Equal(1408, GpuVramEstimator.Estimate(request).BudgetMiB);
     }
 
     [Fact]
-    public void Estimate_4k10BitWithoutTonemapUsesOneGiBBudget()
+    public void Estimate_4k10BitWithoutTonemapMatchesThe824MiBMeasurement()
     {
         var request = VideoRequest();
         request.SourceWidth = 3840;
@@ -112,7 +112,7 @@ public class GpuVramEstimatorTests
 
         var estimate = GpuVramEstimator.Estimate(request);
 
-        Assert.Equal(1024, estimate.BudgetMiB);
+        Assert.Equal(896, estimate.BudgetMiB);
         Assert.False(estimate.UsesTonemap);
     }
 
@@ -165,7 +165,7 @@ public class GpuVramEstimatorTests
 
         var estimate = GpuVramEstimator.Estimate(request);
 
-        Assert.True(estimate.BudgetMiB >= 1024);
+        Assert.True(estimate.BudgetMiB >= 896);
         Assert.True(estimate.UsedFallbackMetadata);
     }
 
@@ -180,10 +180,10 @@ public class GpuVramEstimatorTests
         request.OutputHeight = 4320;
         request.OutputBitDepth = 10;
 
-        Assert.Equal(4096, GpuVramEstimator.Estimate(request).BudgetMiB);
+        Assert.Equal(3584, GpuVramEstimator.Estimate(request).BudgetMiB);
 
         request.CommandLineArguments = TonemapArguments;
-        Assert.Equal(6144, GpuVramEstimator.Estimate(request).BudgetMiB);
+        Assert.Equal(5632, GpuVramEstimator.Estimate(request).BudgetMiB);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class GpuVramEstimatorTests
 
         var estimate = GpuVramEstimator.Estimate(request);
 
-        Assert.Equal(4096, estimate.BudgetMiB);
+        Assert.Equal(3584, estimate.BudgetMiB);
         Assert.True(estimate.UsedFallbackMetadata);
     }
 
@@ -247,7 +247,7 @@ public class GpuVramEstimatorTests
         request.CommandLineArguments =
             "-hwaccel cuda -i source.mkv -pix_fmt p010le -codec:v:0 hevc_nvenc output.m3u8";
 
-        Assert.Equal(1024, GpuVramEstimator.Estimate(request).BudgetMiB);
+        Assert.Equal(896, GpuVramEstimator.Estimate(request).BudgetMiB);
     }
 
     [Fact]

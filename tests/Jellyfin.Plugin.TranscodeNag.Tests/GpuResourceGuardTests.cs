@@ -169,6 +169,43 @@ public class GpuResourceGuardTests
     }
 
     [Fact]
+    public async Task IsAdmittedAsync_TheGladiatorJobThatRunsOn1490MiBFreeIsNotRefused()
+    {
+        // Ground truth from the reporting server, not from a band. nvidia-smi before: 1490 MiB
+        // free, guard refusing. nvidia-smi during playback with the guard off: the FFmpeg process
+        // row reads 1381 MiB and the file plays. A budget that refuses this is simply wrong.
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(1490);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var request = HardwareTranscodeRequest();
+        request.OutputVideoCodec = "av1";
+        request.OutputWidth = 3840;
+        request.OutputHeight = 2160;
+        request.OutputBitDepth = 10;
+
+        Assert.True(await CreateGuard(EnabledConfig(), provider, messages)
+            .IsAdmittedAsync(request, CancellationToken.None));
+        Assert.Empty(messages.SentMessages);
+    }
+
+    [Fact]
+    public void Estimate_NoBudgetExceedsWhatTheJobWasMeasuredUsing()
+    {
+        // The 4K HDR tone-mapped shape was measured at 1381 MiB while running.
+        var request = HardwareTranscodeRequest();
+        request.OutputVideoCodec = "av1";
+        request.OutputWidth = 3840;
+        request.OutputHeight = 2160;
+        request.OutputBitDepth = 10;
+
+        var budgetMiB = GpuVramEstimator.Estimate(request).BudgetMiB;
+
+        Assert.True(budgetMiB >= 1381, $"budget {budgetMiB} MiB is under the measured peak");
+        Assert.True(budgetMiB <= 1490, $"budget {budgetMiB} MiB refuses a job measured at 1381 MiB");
+    }
+
+    [Fact]
     public async Task IsAdmittedAsync_InsufficientVramDeniesAndMessagesTheRequestingClientOnce()
     {
         var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
