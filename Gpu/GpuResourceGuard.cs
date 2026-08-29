@@ -16,7 +16,7 @@ namespace Jellyfin.Plugin.TranscodeNag.Gpu;
 /// </summary>
 /// <remarks>
 /// This is admission control, not a GPU scheduler. A fresh reading is taken immediately before
-/// Jellyfin launches FFmpeg and compared with a conservative budget for that job. Short-lived in-flight
+/// Jellyfin launches FFmpeg and compared with a measured budget for that job. Short-lived in-flight
 /// reservations cover the gap before a new process's allocation appears in nvidia-smi. Admission
 /// cannot guarantee every driver allocation succeeds; it rejects the predictable failures while
 /// allowing smaller jobs to use the VRAM that is genuinely left.

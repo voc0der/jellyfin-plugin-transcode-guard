@@ -27,12 +27,17 @@ launched FFmpeg PID so the model can be compared with real MiB usage and refined
 | --- | ---: | ---: | ---: |
 | 1080p show forced to 720p | 329 MiB | 323 MiB | 512 MiB |
 | GoT S01E01 4K HEVC Main10 HDR, no CUDA tone map | 829 MiB | 824 MiB | 1024 MiB |
-| Gladiator 4K filter-heavy transcode | 1345 MiB in the supplied snapshot | 1339 MiB | 1536 MiB |
+| Gladiator 4K filter-heavy transcode | 1345 MiB in the supplied snapshot | 1339 MiB, later 1381 MiB | 1408 MiB |
 
-The Gladiator workload was also reported around 1496 MiB and the smaller workload around 390 MiB at
-other points. One snapshot is not a peak measurement, which is why the admission requirements retain
-headroom. The post-launch sampler takes three process-specific readings and logs the maximum alongside
-the source/output shape and requirement.
+The 1381 MiB figure is an nvidia-smi process row taken while the file was playing with the guard
+off, on a card with 1490 MiB free. It supersedes an earlier "around 1496 MiB" report, which was the
+number that made a 1536 MiB requirement look defensible. It was not: the job runs in 1381 MiB.
+
+Requirements are a measurement plus a stated margin. Keep the margin visible and small enough that
+no requirement exceeds what the shape has been measured using - a budget above the measured peak is
+not conservatism, it refuses jobs that demonstrably run. The post-launch sampler takes three
+process-specific readings and logs the maximum alongside the source/output shape and requirement;
+that log is the evidence any future change to a band has to cite.
 
 ## Admission model
 
@@ -41,12 +46,13 @@ the source/output shape and requirement.
 - 1080p and below: 512 MiB.
 - 1440p: 768 MiB.
 - 4K 8-bit: 768 MiB.
-- 4K 10-bit: 1024 MiB.
+- 4K 10-bit: 896 MiB (824 measured).
 - CUDA tone mapping: +256 MiB through 1440p, +512 MiB at 4K.
 - AV1 output, high reference-frame pressure, frame rates above 60 fps, and additional CUDA filters
   add conservative surface allowances.
 - Requirements above 4K scale with pixel count; they are no longer capped at 4096 MiB.
-- Missing metadata has a 1536 MiB floor, while any known larger dimensions still scale above it.
+- Missing metadata has a 1408 MiB floor - the heaviest measured shape and no more - while any known
+  larger dimensions still scale above it.
 - Pixel formats and FFmpeg output options are used to recover bit depth when Jellyfin's target fields
   are null during a normal non-static transcode.
 
