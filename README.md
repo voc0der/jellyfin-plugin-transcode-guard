@@ -88,6 +88,7 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 - Use the built-in live session monitor to see which active sessions currently match your rules.
 - Enable **Message of the Day** (off by default) to send an announcement to everyone at login. Its options stay collapsed until the toggle is on, and it has its own message, its own **Manage Excluded Users (MOTD)** list, and its own client include/exclude filters, all independent of the nag settings.
 - Enable **GPU resource guard** (off by default) to set the fallback GPU index, nvidia-smi timeout and path, and the message a refused client sees. The guard reads current free memory immediately before launch and automatically budgets each job from its source, CUDA filters, and output instead of using a fixed free-VRAM threshold. An explicit GPU selected by FFmpeg overrides the fallback index. `nvidia-smi` must be runnable by the Jellyfin server process.
+- **VRAM budget (%)** tunes how much of that automatic budget the guard demands. The budget is the worst plausible peak for a job shape, not the usage of any one run, so on a card that is already mostly occupied it can refuse a job that would in fact have fitted. Lower this to admit those jobs, raise it for more margin. Every refusal logs both the model budget and the percentage applied, and each launched job logs a `GPU VRAM calibration` line with what FFmpeg really used - tune against those rather than guessing, and lower it in small steps: budgeting under the real peak is what CUDA reports as an out-of-memory failure.
 
 ## Behavior Notes
 

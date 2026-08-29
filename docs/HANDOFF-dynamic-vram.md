@@ -52,6 +52,19 @@ the source/output shape and requirement.
 
 The policy comparison is inclusive: `freeMiB >= jobRequirementMiB + inFlightMiB`.
 
+## Admin override
+
+`GpuVramBudgetPercent` (default 100, clamped to 10-500) scales the model's requirement before it is
+compared and before it is reserved. It exists because the model deliberately returns the worst
+plausible peak for a shape: on a card already mostly occupied by something else, a 4K HDR tone-mapped
+job budgeted at 1536 MiB is refused against a 1490 MiB reading even though the same shape has been
+measured at 1339 MiB. Without a dial the only recourse was switching the guard off entirely.
+
+Scaling applies to the decision, the in-flight reservation, and the refusal reason, so a tuned
+deployment cannot reserve one figure and be judged against another. The `GPU VRAM calibration` line
+keeps reporting the unscaled model budget next to the observed maximum: that is the calibration
+record, and it must stay comparable across deployments with different percentages.
+
 ## Concurrent starts
 
 The free-memory query, decision, and reservation are serialized. This prevents two starts from both
@@ -94,7 +107,7 @@ Gpu/GpuVramEstimator.cs              Pure conservative requirement model
 Gpu/NvidiaTranscodeDetector.cs       Token/graph parsing and selected-GPU detection
 Gpu/NvidiaSmiGpuMemoryProvider.cs    Free and per-process nvidia-smi queries
 Gpu/NvidiaSmiOutputParser.cs         Whole-MiB CSV parsing
-Configuration/configPage.html        Guard settings (no fixed free-memory knob)
+Configuration/configPage.html        Guard settings (budget percentage, no fixed free-memory knob)
 tests/Jellyfin.Plugin.TranscodeNag.Tests/
 ```
 

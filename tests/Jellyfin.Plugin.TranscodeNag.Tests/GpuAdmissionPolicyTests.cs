@@ -16,6 +16,77 @@ public class GpuAdmissionPolicyTests
     };
 
     [Fact]
+    public void ScaleBudgetMiB_DefaultPercentageLeavesTheModelBudgetAlone()
+    {
+        Assert.Equal(100, new PluginConfiguration().GpuVramBudgetPercent);
+        Assert.Equal(1536, GpuAdmissionPolicy.ScaleBudgetMiB(1536, EnabledConfig()));
+    }
+
+    [Fact]
+    public void ScaleBudgetMiB_LoweringThePercentageAdmitsAJobTheModelBudgetWouldRefuse()
+    {
+        // The reported case: a 4K HDR tone-mapped job budgeted at 1536 MiB against 1490 MiB free.
+        var config = EnabledConfig();
+        config.GpuVramBudgetPercent = 90;
+
+        var budgetMiB = GpuAdmissionPolicy.ScaleBudgetMiB(1536, config);
+
+        Assert.Equal(1382, budgetMiB);
+        Assert.Equal(
+            GpuAdmissionOutcome.AllowedSufficientMemory,
+            GpuAdmissionPolicy.Evaluate(
+                config,
+                requiresGpuVideoTranscode: true,
+                memory: GpuMemoryQueryResult.FromFreeMiB(1490),
+                jobBudgetMiB: budgetMiB));
+    }
+
+    [Fact]
+    public void ScaleBudgetMiB_RaisingThePercentageBuysMargin()
+    {
+        var config = EnabledConfig();
+        config.GpuVramBudgetPercent = 125;
+
+        Assert.Equal(1920, GpuAdmissionPolicy.ScaleBudgetMiB(1536, config));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-50)]
+    [InlineData(int.MinValue)]
+    public void ScaleBudgetMiB_PercentagesBelowTheFloorAreClamped(int percent)
+    {
+        // A stored configuration need not have come from this build's settings page.
+        var config = EnabledConfig();
+        config.GpuVramBudgetPercent = percent;
+
+        Assert.Equal(
+            1536 * GpuAdmissionPolicy.MinimumBudgetPercent / 100,
+            GpuAdmissionPolicy.ScaleBudgetMiB(1536, config));
+    }
+
+    [Fact]
+    public void ScaleBudgetMiB_PercentagesAboveTheCeilingAreClamped()
+    {
+        var config = EnabledConfig();
+        config.GpuVramBudgetPercent = int.MaxValue;
+
+        Assert.Equal(
+            1536 * GpuAdmissionPolicy.MaximumBudgetPercent / 100,
+            GpuAdmissionPolicy.ScaleBudgetMiB(1536, config));
+    }
+
+    [Fact]
+    public void ScaleBudgetMiB_AJobThatNeedsVramNeverScalesDownToFree()
+    {
+        var config = EnabledConfig();
+        config.GpuVramBudgetPercent = GpuAdmissionPolicy.MinimumBudgetPercent;
+
+        Assert.Equal(1, GpuAdmissionPolicy.ScaleBudgetMiB(1, config));
+        Assert.Equal(0, GpuAdmissionPolicy.ScaleBudgetMiB(0, config));
+    }
+
+    [Fact]
     public void Evaluate_GuardDisabled_AllowsWithoutNeedingAGpuReading()
     {
         var config = new PluginConfiguration { EnableGpuResourceGuard = false };

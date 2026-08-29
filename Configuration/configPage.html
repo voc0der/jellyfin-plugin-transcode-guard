@@ -203,6 +203,20 @@
                         </div>
 
                         <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtGpuVramBudgetPercent">VRAM budget (%):</label>
+                            <input type="number" id="txtGpuVramBudgetPercent" name="txtGpuVramBudgetPercent" min="10" max="500" step="5" class="emby-input" />
+                            <div class="fieldDescription">
+                                How much of each job's automatic VRAM budget the guard demands. 100 uses the budget as
+                                calibrated, which is the worst plausible peak for that job shape rather than any single
+                                run &mdash; on a card that is already mostly occupied it can refuse a job that would in
+                                fact have fitted. Lower this to admit those jobs, raise it for more margin. Search the
+                                server log for <code>GPU VRAM calibration</code> to see what your jobs really used, and
+                                lower it in small steps: budgeting under the real peak is what CUDA reports as an
+                                out-of-memory failure.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtGpuCheckTimeoutMs">GPU check timeout (ms):</label>
                             <input type="number" id="txtGpuCheckTimeoutMs" name="txtGpuCheckTimeoutMs" min="100" max="10000" class="emby-input" />
                             <div class="fieldDescription">How long to wait for nvidia-smi before giving up and allowing playback.</div>
@@ -947,6 +961,7 @@
                     document.getElementById('txtMotdExcludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdExcludedClientPatterns);
                     document.getElementById('chkEnableGpuResourceGuard').checked = config.EnableGpuResourceGuard === true;
                     document.getElementById('txtGpuIndex').value = GpuGuardSection.numberOrDefault(config.GpuIndex, 0);
+                    document.getElementById('txtGpuVramBudgetPercent').value = GpuGuardSection.numberOrDefault(config.GpuVramBudgetPercent, 100);
                     document.getElementById('txtGpuCheckTimeoutMs').value = GpuGuardSection.numberOrDefault(config.GpuCheckTimeoutMilliseconds, 1000);
                     document.getElementById('txtNvidiaSmiPath').value = config.NvidiaSmiPath || '';
                     document.getElementById('txtGpuGuardDeniedHeader').value = config.GpuGuardDeniedHeader || '';
@@ -982,6 +997,7 @@
                     config.MotdExcludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdExcludedClientPatterns').value);
                     config.EnableGpuResourceGuard = document.getElementById('chkEnableGpuResourceGuard').checked;
                     config.GpuIndex = GpuGuardSection.readNumber('txtGpuIndex', 0);
+                    config.GpuVramBudgetPercent = GpuGuardSection.readNumber('txtGpuVramBudgetPercent', 100);
                     config.GpuCheckTimeoutMilliseconds = GpuGuardSection.readNumber('txtGpuCheckTimeoutMs', 1000);
                     config.NvidiaSmiPath = document.getElementById('txtNvidiaSmiPath').value.trim();
                     config.GpuGuardDeniedHeader = document.getElementById('txtGpuGuardDeniedHeader').value;

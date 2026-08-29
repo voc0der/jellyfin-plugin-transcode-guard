@@ -169,6 +169,82 @@ public class GpuResourceGuardTests
     }
 
     [Fact]
+    public async Task IsAdmittedAsync_TheReportedGladiatorRefusalIsAdmittedOnceTheBudgetPercentageIsLowered()
+    {
+        // 4K HDR10 tone-mapped job, model budget 1536 MiB, on a card sharing VRAM with an LLM:
+        // nvidia-smi reported 1490 MiB free, so the default budget refuses it by 46 MiB.
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var config = EnabledConfig();
+        Assert.False(await CreateGuard(config, FakeGpuMemoryProvider.WithFreeMiB(1490), messages)
+            .IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None));
+
+        config.GpuVramBudgetPercent = 90;
+
+        Assert.True(await CreateGuard(config, FakeGpuMemoryProvider.WithFreeMiB(1490), messages)
+            .IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_RaisingTheBudgetPercentageRefusesAJobTheModelBudgetWouldAdmit()
+    {
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var config = EnabledConfig();
+        config.GpuVramBudgetPercent = 150;
+
+        // 1536 MiB model budget, 2304 MiB demanded.
+        Assert.False(await CreateGuard(config, FakeGpuMemoryProvider.WithFreeMiB(2000), messages)
+            .IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None));
+    }
+
+    [Fact]
+    public void BuildRefusalReason_QuotesTheBudgetTheGuardActuallyDemanded()
+    {
+        var config = EnabledConfig();
+        config.GpuVramBudgetPercent = 90;
+        var guard = CreateGuard(config, FakeGpuMemoryProvider.WithFreeMiB(1490), new RecordingClientMessageService());
+
+        var reason = guard.BuildRefusalReason(HardwareTranscodeRequest());
+
+        Assert.Contains("1382 MiB", reason, StringComparison.Ordinal);
+        Assert.DoesNotContain("1536 MiB", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IsAdmittedAsync_ScaledBudgetsAlsoScaleTheInFlightReservation()
+    {
+        // Two 1536 MiB jobs at 50% demand 768 MiB each. The first must reserve the scaled figure,
+        // not the model figure, or the second is judged against a reservation nobody will allocate.
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var config = EnabledConfig();
+        config.GpuVramBudgetPercent = 50;
+        var guard = CreateGuard(config, FakeGpuMemoryProvider.WithFreeMiB(1536), messages);
+
+        var first = await guard.TryReserveAsync(
+            OutputPathRequest("/cache/transcodes/first.m3u8", "device-1"),
+            CancellationToken.None);
+        Assert.True(first.IsAdmitted);
+
+        var second = await guard.TryReserveAsync(
+            OutputPathRequest("/cache/transcodes/second.m3u8", "device-2"),
+            CancellationToken.None);
+
+        Assert.True(second.IsAdmitted);
+    }
+
+    private static GpuTranscodeRequest OutputPathRequest(string outputPath, string deviceId)
+    {
+        var request = HardwareTranscodeRequest(deviceId, deviceId);
+        request.OutputPath = outputPath;
+        return request;
+    }
+
+    [Fact]
     public async Task IsAdmittedAsync_InsufficientVramDeniesAndMessagesTheRequestingClientOnce()
     {
         var provider = FakeGpuMemoryProvider.WithFreeMiB(700);

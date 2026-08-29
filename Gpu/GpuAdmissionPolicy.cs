@@ -108,6 +108,61 @@ internal static class GpuAdmissionPolicy
     }
 
     /// <summary>
+    /// Minimum and maximum values accepted for <see cref="PluginConfiguration.GpuVramBudgetPercent"/>.
+    /// A stored configuration is not necessarily one this build's settings page wrote, so the
+    /// bounds are enforced here rather than trusted from the UI.
+    /// </summary>
+    internal const int MinimumBudgetPercent = 10;
+
+    /// <summary>The largest accepted VRAM budget percentage.</summary>
+    internal const int MaximumBudgetPercent = 500;
+
+    /// <summary>
+    /// Applies the admin's budget percentage to one job's automatic requirement.
+    /// </summary>
+    /// <remarks>
+    /// The model produces the worst plausible peak for a job shape. An admin who has watched the
+    /// calibration log on their own hardware knows better than the model does, so this scales the
+    /// requirement rather than forcing them to choose between the model's number and no guard at
+    /// all. A job that needs any VRAM keeps needing at least 1 MiB, so scaling can never turn a
+    /// real transcode into a free one.
+    /// </remarks>
+    /// <param name="budgetMiB">The model's conservative requirement.</param>
+    /// <param name="config">Plugin configuration.</param>
+    /// <returns>The requirement the guard will actually demand.</returns>
+    internal static int ScaleBudgetMiB(int budgetMiB, PluginConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        if (budgetMiB <= 0)
+        {
+            return 0;
+        }
+
+        var percent = EffectiveBudgetPercent(config);
+        if (percent == 100)
+        {
+            return budgetMiB;
+        }
+
+        var scaled = (long)budgetMiB * percent / 100;
+
+        return (int)Math.Clamp(scaled, 1, int.MaxValue);
+    }
+
+    /// <summary>
+    /// Gets the budget percentage actually in force, with an out-of-range stored value clamped.
+    /// </summary>
+    /// <param name="config">Plugin configuration.</param>
+    /// <returns>The percentage applied to every model budget.</returns>
+    internal static int EffectiveBudgetPercent(PluginConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        return Math.Clamp(config.GpuVramBudgetPercent, MinimumBudgetPercent, MaximumBudgetPercent);
+    }
+
+    /// <summary>
     /// Returns true when the guard must read GPU state before deciding.
     /// </summary>
     /// <param name="config">Plugin configuration.</param>

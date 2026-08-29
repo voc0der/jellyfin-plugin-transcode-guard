@@ -83,6 +83,19 @@ public class PluginConfiguration : BasePluginConfiguration
     public int GpuIndex { get; set; } = 0;
 
     /// <summary>
+    /// Gets or sets the percentage of the automatic per-job VRAM budget the guard actually demands.
+    /// </summary>
+    /// <remarks>
+    /// The automatic budget is deliberately conservative: it is the worst plausible peak for a job
+    /// shape, not the usage of any one run, so on a card that is already mostly occupied it can
+    /// refuse a job that would in fact have fitted. This is the dial for that case. 100 keeps the
+    /// model as calibrated, below 100 trades margin for admissions, above 100 buys extra margin.
+    /// Under-budgeting is what CUDA reports as OOM (FFmpeg exit 187), so lower it in small steps
+    /// and read the calibration lines in the log before lowering it again.
+    /// </remarks>
+    public int GpuVramBudgetPercent { get; set; } = 100;
+
+    /// <summary>
     /// Gets or sets how long the nvidia-smi query may run before it is abandoned.
     /// </summary>
     public int GpuCheckTimeoutMilliseconds { get; set; } = 1000;

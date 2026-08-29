@@ -144,9 +144,15 @@ public sealed class GpuResourceGuard
         var gpuIndex = features.GpuIndex ?? config.GpuIndex;
         int? reservationGpuIndex = features.HasConflictingGpuIndices ? null : gpuIndex;
         var estimate = requiresGpu ? GpuVramEstimator.Estimate(request) : GpuVramEstimate.Zero;
+
+        // The model's number is the worst plausible peak for this shape. What the guard demands is
+        // that number after the admin's budget percentage, and everything downstream - the
+        // comparison, the reservation, and the refusal text - uses the demanded figure so a tuned
+        // deployment cannot reserve one amount and be judged against another.
+        var jobBudgetMiB = GpuAdmissionPolicy.ScaleBudgetMiB(estimate.BudgetMiB, config);
         var reservationKey = BuildReservationKey(reservationGpuIndex, request);
         var inFlightBudgetMiB = 0;
-        var decisionJobBudgetMiB = estimate.BudgetMiB;
+        var decisionJobBudgetMiB = jobBudgetMiB;
         var currentJobAlreadyTracked = false;
         GpuMemoryQueryResult? memory = null;
         GpuAdmissionOutcome outcome;
@@ -158,7 +164,7 @@ public sealed class GpuResourceGuard
                 config,
                 requiresGpu,
                 memory,
-                estimate.BudgetMiB);
+                jobBudgetMiB);
         }
         else
         {
@@ -219,7 +225,7 @@ public sealed class GpuResourceGuard
                     && outcome is GpuAdmissionOutcome.AllowedSufficientMemory
                         or GpuAdmissionOutcome.AllowedQueryFailed)
                 {
-                    reservation = AddReservation(reservationGpuIndex, reservationKey, estimate.BudgetMiB);
+                    reservation = AddReservation(reservationGpuIndex, reservationKey, jobBudgetMiB);
                 }
             }
             finally
@@ -238,13 +244,15 @@ public sealed class GpuResourceGuard
             if (outcome == GpuAdmissionOutcome.AllowedSufficientMemory)
             {
                 BestEffort(() => _logger.LogDebug(
-                    "GPU resource guard allowed transcode of {ItemName}: free VRAM {FreeMiB} MiB fits decision budget {DecisionBudgetMiB} MiB plus in-flight budget {InFlightBudgetMiB} MiB on GPU {GpuIndex}; profile budget {ProfileBudgetMiB} MiB, existing output job {ExistingOutputJob}",
+                    "GPU resource guard allowed transcode of {ItemName}: free VRAM {FreeMiB} MiB fits decision budget {DecisionBudgetMiB} MiB plus in-flight budget {InFlightBudgetMiB} MiB on GPU {GpuIndex}; profile budget {ProfileBudgetMiB} MiB at {BudgetPercent}% is {DemandedBudgetMiB} MiB, existing output job {ExistingOutputJob}",
                     request.ItemName ?? "Unknown",
                     memory!.Value.FreeMiB,
                     decisionJobBudgetMiB,
                     inFlightBudgetMiB,
                     gpuIndex,
                     estimate.BudgetMiB,
+                    GpuAdmissionPolicy.EffectiveBudgetPercent(config),
+                    jobBudgetMiB,
                     currentJobAlreadyTracked));
             }
             else
@@ -269,6 +277,7 @@ public sealed class GpuResourceGuard
                 config,
                 memory!.Value,
                 estimate,
+                jobBudgetMiB,
                 inFlightBudgetMiB,
                 gpuIndex,
                 cancellationToken).ConfigureAwait(false);
@@ -306,7 +315,7 @@ public sealed class GpuResourceGuard
             CultureInfo.InvariantCulture,
             "Transcode Nag refused this hardware transcode: its conservative {1} MiB VRAM budget does not fit in the memory currently free on GPU {0}.",
             selectedGpuIndex ?? config.GpuIndex,
-            estimate.BudgetMiB);
+            GpuAdmissionPolicy.ScaleBudgetMiB(estimate.BudgetMiB, config));
     }
 
     private async Task DenyAsync(
@@ -314,6 +323,7 @@ public sealed class GpuResourceGuard
         PluginConfiguration config,
         GpuMemoryQueryResult memory,
         GpuVramEstimate estimate,
+        int jobBudgetMiB,
         int inFlightBudgetMiB,
         int gpuIndex,
         CancellationToken cancellationToken)
@@ -331,15 +341,17 @@ public sealed class GpuResourceGuard
         }
 
         BestEffort(() => _logger.LogWarning(
-            "GPU transcode blocked for session {SessionId}, user {UserName}, device {DeviceName}, item {ItemName}: free VRAM {FreeMiB} MiB cannot fit conservative job budget {JobBudgetMiB} MiB plus in-flight budget {InFlightBudgetMiB} MiB on GPU {GpuIndex}; shape {SourceWidth}x{SourceHeight} {SourceBitDepth}-bit {SourceCodec} to {OutputWidth}x{OutputHeight} {OutputBitDepth}-bit {OutputCodec}, CUDA tonemap {UsesTonemap}, metadata fallback {UsedFallbackMetadata}",
+            "GPU transcode blocked for session {SessionId}, user {UserName}, device {DeviceName}, item {ItemName}: free VRAM {FreeMiB} MiB cannot fit conservative job budget {JobBudgetMiB} MiB plus in-flight budget {InFlightBudgetMiB} MiB on GPU {GpuIndex}; the model budget is {ProfileBudgetMiB} MiB at {BudgetPercent}% (lower GpuVramBudgetPercent to admit jobs this size); shape {SourceWidth}x{SourceHeight} {SourceBitDepth}-bit {SourceCodec} to {OutputWidth}x{OutputHeight} {OutputBitDepth}-bit {OutputCodec}, CUDA tonemap {UsesTonemap}, metadata fallback {UsedFallbackMetadata}",
             session?.Id ?? "Unknown",
             session?.UserName ?? "Unknown",
             session?.DeviceName ?? "Unknown",
             request.ItemName ?? "Unknown",
             memory.FreeMiB,
-            estimate.BudgetMiB,
+            jobBudgetMiB,
             inFlightBudgetMiB,
             gpuIndex,
+            estimate.BudgetMiB,
+            GpuAdmissionPolicy.EffectiveBudgetPercent(config),
             estimate.SourceWidth,
             estimate.SourceHeight,
             estimate.SourceBitDepth,
