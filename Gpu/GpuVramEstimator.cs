@@ -42,11 +42,12 @@ internal static class GpuVramEstimator
 
         var inferredSourceBitDepth = InferPixelFormatBitDepth(request.SourcePixelFormat);
         var inferredOutputBitDepth = InferOutputBitDepth(request.CommandLineArguments);
-        var usedFallback = !IsDimension(request.SourceWidth)
+        var usedSourceFallback = !IsDimension(request.SourceWidth)
             || !IsDimension(request.SourceHeight)
-            || !IsDimension(request.OutputWidth)
-            || !IsDimension(request.OutputHeight)
             || (!IsBitDepth(request.SourceBitDepth) && !inferredSourceBitDepth.HasValue);
+        var usedFallback = usedSourceFallback
+            || !IsDimension(request.OutputWidth)
+            || !IsDimension(request.OutputHeight);
 
         var sourceWidth = ValidDimension(request.SourceWidth, DefaultWidth);
         var sourceHeight = ValidDimension(request.SourceHeight, DefaultHeight);
@@ -67,26 +68,31 @@ internal static class GpuVramEstimator
             outputWidth * (long)outputHeight);
         var largestBitDepth = Math.Max(sourceBitDepth, outputBitDepth);
 
-        var budgetMiB = BaseBudgetMiB(largestFramePixels, largestBitDepth, usedFallback);
+        var budgetMiB = BaseBudgetMiB(largestFramePixels, largestBitDepth);
+        long pipelinePressureMiB = 0;
 
         // Tone mapping is the observed distinction between a roughly 1 GiB 4K HDR job and a
         // roughly 1.5 GiB one. Merely being HDR does not incur this band: Jellyfin must actually
         // have placed tonemap_cuda in the command line.
         if (features.UsesTonemap)
         {
-            budgetMiB += largestFramePixels > UltraHdPixels
+            pipelinePressureMiB = largestFramePixels > UltraHdPixels
                 ? ScaleAndRoundUp(512, largestFramePixels, UltraHdPixels)
                 : largestFramePixels > QuadHdPixels ? 512 : 256;
         }
 
         if (features.UsesOtherFilters)
         {
-            budgetMiB += ScaleSurcharge(256, largestFramePixels);
+            pipelinePressureMiB = Math.Max(
+                pipelinePressureMiB,
+                ScaleSurcharge(256, largestFramePixels));
         }
 
         if (string.Equals(request.OutputVideoCodec, "av1", StringComparison.OrdinalIgnoreCase))
         {
-            budgetMiB += ScaleSurcharge(256, largestFramePixels);
+            pipelinePressureMiB = Math.Max(
+                pipelinePressureMiB,
+                ScaleSurcharge(256, largestFramePixels));
         }
 
         if (request.SourceRefFrames > 8
@@ -94,7 +100,19 @@ internal static class GpuVramEstimator
             || request.SourceFramerate > 60
             || outputFramerate > 60)
         {
-            budgetMiB += ScaleSurcharge(256, largestFramePixels);
+            pipelinePressureMiB = Math.Max(
+                pipelinePressureMiB,
+                ScaleSurcharge(256, largestFramePixels));
+        }
+
+        // These signals all describe pressure on the same decoder/filter/encoder surface pool.
+        // Adding them as if they were independent allocations double-counts the pipeline and made
+        // the measured 1339-1496 MiB 4K workload require 2048 MiB. Use the largest applicable
+        // envelope, then apply the unknown-source floor to the completed budget.
+        budgetMiB += pipelinePressureMiB;
+        if (usedSourceFallback)
+        {
+            budgetMiB = Math.Max(1536, budgetMiB);
         }
 
         budgetMiB = Math.Clamp(budgetMiB, 512, int.MaxValue);
@@ -111,7 +129,7 @@ internal static class GpuVramEstimator
             usedFallback);
     }
 
-    private static long BaseBudgetMiB(long largestFramePixels, int largestBitDepth, bool usedFallback)
+    private static long BaseBudgetMiB(long largestFramePixels, int largestBitDepth)
     {
         long budgetMiB;
         if (largestFramePixels <= FullHdPixels)
@@ -132,9 +150,7 @@ internal static class GpuVramEstimator
             budgetMiB = ScaleAndRoundUp(ultraHdBudgetMiB, largestFramePixels, UltraHdPixels);
         }
 
-        // Missing fields must not silently turn an unknown job into the cheapest class, but known
-        // dimensions above 4K must still scale beyond this fallback floor.
-        return usedFallback ? Math.Max(1536, budgetMiB) : budgetMiB;
+        return budgetMiB;
     }
 
     private static long ScaleAndRoundUp(int referenceMiB, long pixels, long referencePixels)

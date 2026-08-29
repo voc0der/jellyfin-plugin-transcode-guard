@@ -59,6 +59,46 @@ public class GpuVramEstimatorTests
     }
 
     [Fact]
+    public void Estimate_4kGladiatorShapeWithMissingOutputMetadataUsesCompleteMeasuredEnvelope()
+    {
+        var request = VideoRequest();
+        request.CommandLineArguments = TonemapArguments;
+        request.SourceWidth = 3840;
+        request.SourceHeight = 2160;
+        request.SourceBitDepth = 10;
+        request.SourceCodec = "hevc";
+        request.SourceVideoRangeType = "HDR10";
+        request.OutputWidth = null;
+        request.OutputHeight = null;
+        request.OutputBitDepth = null;
+
+        var estimate = GpuVramEstimator.Estimate(request);
+
+        Assert.Equal(1536, estimate.BudgetMiB);
+        Assert.True(estimate.UsedFallbackMetadata);
+    }
+
+    [Fact]
+    public void Estimate_4kPipelinePressureSignalsDoNotDoubleCountTheSameSurfacePool()
+    {
+        var request = VideoRequest();
+        request.CommandLineArguments =
+            "-hwaccel cuda -i source.mkv " +
+            "-vf \"tonemap_cuda,scale_cuda=1920:1080,overlay_cuda\" " +
+            "-codec:v:0 av1_nvenc -refs:v:0 12 -r:v:0 120 output.m3u8";
+        request.OutputVideoCodec = "av1";
+        request.SourceWidth = 3840;
+        request.SourceHeight = 2160;
+        request.SourceBitDepth = 10;
+        request.OutputWidth = null;
+        request.OutputHeight = null;
+        request.OutputRefFrames = null;
+        request.OutputFramerate = null;
+
+        Assert.Equal(1536, GpuVramEstimator.Estimate(request).BudgetMiB);
+    }
+
+    [Fact]
     public void Estimate_4k10BitWithoutTonemapUsesOneGiBBudget()
     {
         var request = VideoRequest();
