@@ -108,6 +108,22 @@ public class GpuResourceGuardTests
     }
 
     [Fact]
+    public async Task IsAdmittedAsync_GladiatorWith1918MiBFreeIsAllowed()
+    {
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(1918);
+        var messages = new RecordingClientMessageService();
+        var guard = CreateGuard(EnabledConfig(), provider, messages);
+        var request = HardwareTranscodeRequest();
+        request.OutputWidth = null;
+        request.OutputHeight = null;
+        request.OutputBitDepth = null;
+
+        Assert.True(await guard.IsAdmittedAsync(request, CancellationToken.None));
+        Assert.Equal(1, provider.QueryCount);
+        Assert.Empty(messages.SentMessages);
+    }
+
+    [Fact]
     public async Task IsAdmittedAsync_RemuxIsAllowedWithoutQueryingTheGpu()
     {
         var provider = FakeGpuMemoryProvider.WithFreeMiB(10);
