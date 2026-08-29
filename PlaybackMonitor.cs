@@ -321,20 +321,21 @@ public class PlaybackMonitor : IHostedService
 
         if (transcodeInfo != null && overrides != null && overrides.Length > 0 && config.AlertTranscodeReasons != null)
         {
-            foreach (var reasonName in config.AlertTranscodeReasons.Where(reasonName => !string.IsNullOrWhiteSpace(reasonName)))
+            var activeReasons = transcodeInfo.TranscodeReasons;
+            var matchedReasons = config.AlertTranscodeReasons
+                .Where(reasonName => !string.IsNullOrWhiteSpace(reasonName))
+                .Where(reasonName => Enum.TryParse<TranscodeReason>(reasonName, true, out var parsedReason)
+                    && (activeReasons & parsedReason) != 0);
+
+            foreach (var reasonName in matchedReasons)
             {
-                if (Enum.TryParse<TranscodeReason>(reasonName, true, out var parsedReason)
-                    && (transcodeInfo.TranscodeReasons & parsedReason) != 0)
+                var overrideEntry = overrides.FirstOrDefault(entry => entry != null
+                    && string.Equals(entry.ReasonName, reasonName, StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(entry.Message));
+
+                if (overrideEntry != null)
                 {
-                    foreach (var overrideEntry in overrides)
-                    {
-                        if (overrideEntry != null
-                            && string.Equals(overrideEntry.ReasonName, reasonName, StringComparison.OrdinalIgnoreCase)
-                            && !string.IsNullOrWhiteSpace(overrideEntry.Message))
-                        {
-                            return overrideEntry.Message;
-                        }
-                    }
+                    return overrideEntry.Message;
                 }
             }
         }
