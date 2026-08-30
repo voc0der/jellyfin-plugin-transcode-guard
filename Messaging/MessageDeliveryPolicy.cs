@@ -18,7 +18,9 @@ internal static class MessageDeliveryPolicy
             throw new ArgumentOutOfRangeException(nameof(sendNumber));
         }
 
-        return TimeSpan.FromMilliseconds((sendNumber - 1) * StickyMessageIntervalMs);
+        // Widen before multiplying so the offset is computed in double rather than
+        // overflowing int and then being converted (cs/loss-of-precision).
+        return TimeSpan.FromMilliseconds((sendNumber - 1) * (double)StickyMessageIntervalMs);
     }
 
     internal static int GetEffectiveVisibilityDurationMs(bool useStickyMessages, int configuredTimeoutMs)
