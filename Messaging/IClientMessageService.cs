@@ -27,10 +27,18 @@ public interface IClientMessageService
     SessionInfo? ResolveSession(string? deviceId, Guid userId, Guid itemId);
 
     /// <summary>
+    /// Cancels pending message delivery for a session, optionally only when its context matches.
+    /// </summary>
+    /// <param name="session">The session whose pending delivery should stop.</param>
+    /// <param name="context">Optional delivery context to match; null cancels any pending message.</param>
+    void CancelPendingMessages(SessionInfo session, string? context = null);
+
+    /// <summary>
     /// Sends a message command to one session, logging the same delivery diagnostics for every caller.
     /// </summary>
     /// <param name="session">Target session.</param>
     /// <param name="command">The message to display.</param>
+    /// <param name="useStickyMessages">Whether to refresh the message for clients that dismiss it early.</param>
     /// <param name="context">Short label for logs, for example "playback nag".</param>
     /// <param name="detail">Extra log detail for this specific send.</param>
     /// <param name="enableLogging">Whether informational delivery logging is switched on.</param>
@@ -40,6 +48,7 @@ public interface IClientMessageService
     Task<bool> SendMessageAsync(
         SessionInfo session,
         MessageCommand command,
+        bool useStickyMessages,
         string context,
         string detail,
         bool enableLogging,

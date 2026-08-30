@@ -369,6 +369,7 @@ public sealed class GpuResourceGuard
                 Text = Fallback(config.GpuGuardDeniedMessage, DefaultDeniedMessage),
                 TimeoutMs = config.MessageTimeoutMs
             },
+            config.UseStickyGpuGuardMessages,
             "gpu guard denial",
             "Hardware transcode refused",
             config.EnableLogging,

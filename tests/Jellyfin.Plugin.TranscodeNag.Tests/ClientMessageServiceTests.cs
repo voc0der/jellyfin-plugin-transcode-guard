@@ -1,5 +1,7 @@
 using Jellyfin.Plugin.TranscodeNag.Messaging;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Session;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jellyfin.Plugin.TranscodeNag.Tests;
 
@@ -104,5 +106,320 @@ public class ClientMessageServiceTests
     {
         Assert.Null(ClientMessageService.SelectSession(null, "device-1", AliceId, Guid.Empty));
         Assert.Null(ClientMessageService.SelectSession(new List<SessionInfo>(), "device-1", AliceId, Guid.Empty));
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_NormalMessageSendsOnceWithConfiguredTimeout()
+    {
+        var timeoutValues = new List<int>();
+        var delays = new List<TimeSpan>();
+        var session = ActiveSession();
+        await using var service = new ClientMessageService(
+            () => new[] { session },
+            (_, command, _) =>
+            {
+                timeoutValues.Add(Convert.ToInt32(command.TimeoutMs));
+                return Task.CompletedTask;
+            },
+            (delay, _) =>
+            {
+                delays.Add(delay);
+                return Task.CompletedTask;
+            });
+
+        var sent = await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 9750 },
+            false,
+            "test",
+            "normal delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None);
+
+        Assert.True(sent);
+        Assert.Equal(new[] { 9750 }, timeoutValues);
+        Assert.Empty(delays);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_StickyMessageRefreshesTwiceWithoutBlockingInitialDelivery()
+    {
+        var timeoutValues = new List<int>();
+        var scheduledDelays = new List<TimeSpan>();
+        var threeSecondGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sixSecondGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var bothDelaysScheduled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondSendCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thirdSendCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = ActiveSession();
+        await using var service = new ClientMessageService(
+            () => new[] { session },
+            (_, command, _) =>
+            {
+                timeoutValues.Add(Convert.ToInt32(command.TimeoutMs));
+                if (timeoutValues.Count == 2)
+                {
+                    secondSendCompleted.TrySetResult();
+                }
+                else if (timeoutValues.Count == 3)
+                {
+                    thirdSendCompleted.TrySetResult();
+                }
+
+                return Task.CompletedTask;
+            },
+            (delay, cancellationToken) =>
+            {
+                scheduledDelays.Add(delay);
+                if (scheduledDelays.Count == 2)
+                {
+                    bothDelaysScheduled.TrySetResult();
+                }
+
+                return delay == TimeSpan.FromSeconds(3)
+                    ? threeSecondGate.Task.WaitAsync(cancellationToken)
+                    : sixSecondGate.Task.WaitAsync(cancellationToken);
+            });
+
+        var originalCommand = new MessageCommand { Header = "header", Text = "text", TimeoutMs = 15000 };
+        var initialSend = service.SendMessageAsync(
+            session,
+            originalCommand,
+            true,
+            "test",
+            "sticky delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None);
+
+        await bothDelaysScheduled.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var sent = await initialSend.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.True(sent);
+        Assert.Equal(new[] { 4000 }, timeoutValues);
+        Assert.Equal(new[] { TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(6) }, scheduledDelays);
+        Assert.Equal(15000, originalCommand.TimeoutMs);
+
+        threeSecondGate.TrySetResult();
+        await secondSendCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(2, timeoutValues.Count);
+        Assert.False(thirdSendCompleted.Task.IsCompleted);
+
+        sixSecondGate.TrySetResult();
+        await thirdSendCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(new[] { 4000, 4000, 4000 }, timeoutValues);
+        Assert.Equal(10000, MessageDeliveryPolicy.GetEffectiveVisibilityDurationMs(true, 15000));
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_NewerMessageCancelsOlderStickyRefreshes()
+    {
+        var sentTexts = new List<string?>();
+        var delayGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = ActiveSession();
+        await using var service = new ClientMessageService(
+            () => new[] { session },
+            (_, command, _) =>
+            {
+                sentTexts.Add(command.Text);
+                return Task.CompletedTask;
+            },
+            (_, cancellationToken) => delayGate.Task.WaitAsync(cancellationToken));
+
+        Assert.True(await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "old", Text = "old sticky", TimeoutMs = 15000 },
+            true,
+            "test",
+            "old delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+
+        Assert.True(await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "new", Text = "new normal", TimeoutMs = 9000 },
+            false,
+            "test",
+            "new delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+
+        delayGate.TrySetResult();
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(new[] { "old sticky", "new normal" }, sentTexts);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_DoesNotRefreshAReplacementSessionWithTheSameId()
+    {
+        var sendCount = 0;
+        var delayGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        SessionInfo liveSession = ActiveSession();
+        var originalSession = liveSession;
+        await using var service = new ClientMessageService(
+            () => new[] { liveSession },
+            (_, _, _) =>
+            {
+                sendCount++;
+                return Task.CompletedTask;
+            },
+            (_, cancellationToken) => delayGate.Task.WaitAsync(cancellationToken));
+
+        Assert.True(await service.SendMessageAsync(
+            originalSession,
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 15000 },
+            true,
+            "test",
+            "sticky delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+
+        liveSession = TestSessions.Create("session-1", "device-2", BobId, "bob");
+        liveSession.AddController(new ActiveSessionController());
+        delayGate.TrySetResult();
+
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, sendCount);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_FinalRefreshStillRunsAfterTransientSecondSendFailure()
+    {
+        var sendCount = 0;
+        var session = ActiveSession();
+        await using var service = new ClientMessageService(
+            () => new[] { session },
+            (_, _, _) =>
+            {
+                sendCount++;
+                return sendCount == 2
+                    ? Task.FromException(new System.Net.WebSockets.WebSocketException("transient failure"))
+                    : Task.CompletedTask;
+            },
+            (_, _) => Task.CompletedTask);
+
+        Assert.True(await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 15000 },
+            true,
+            "test",
+            "sticky delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(3, sendCount);
+    }
+
+    [Fact]
+    public async Task CancelPendingMessages_StopsStickyRefreshesWithMatchingContext()
+    {
+        var sendCount = 0;
+        var delayGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = ActiveSession();
+        await using var service = new ClientMessageService(
+            () => new[] { session },
+            (_, _, _) =>
+            {
+                sendCount++;
+                return Task.CompletedTask;
+            },
+            (_, cancellationToken) => delayGate.Task.WaitAsync(cancellationToken));
+
+        Assert.True(await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 15000 },
+            true,
+            "test",
+            "sticky delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+
+        service.CancelPendingMessages(session, "test");
+        delayGate.TrySetResult();
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(1, sendCount);
+    }
+
+    [Fact]
+    public async Task CancelPendingMessages_DoesNotCancelADifferentMessageContext()
+    {
+        var sendCount = 0;
+        var delayGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = ActiveSession();
+        await using var service = new ClientMessageService(
+            () => new[] { session },
+            (_, _, _) =>
+            {
+                sendCount++;
+                return Task.CompletedTask;
+            },
+            (_, cancellationToken) => delayGate.Task.WaitAsync(cancellationToken));
+
+        Assert.True(await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 15000 },
+            true,
+            "motd",
+            "sticky delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+
+        service.CancelPendingMessages(session, "playback nag");
+        delayGate.TrySetResult();
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(3, sendCount);
+    }
+
+    [Fact]
+    public async Task ApplicationStopping_CancelsPendingStickyRefreshes()
+    {
+        var sendCount = 0;
+        var delayGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var applicationStopping = new CancellationTokenSource();
+        var session = ActiveSession();
+        await using var service = new ClientMessageService(
+            () => new[] { session },
+            (_, _, _) =>
+            {
+                sendCount++;
+                return Task.CompletedTask;
+            },
+            (_, cancellationToken) => delayGate.Task.WaitAsync(cancellationToken),
+            applicationStopping.Token);
+
+        Assert.True(await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 15000 },
+            true,
+            "test",
+            "sticky delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+
+        applicationStopping.Cancel();
+        delayGate.TrySetResult();
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(1, sendCount);
+    }
+
+    private static SessionInfo ActiveSession()
+    {
+        var session = TestSessions.Create("session-1", "device-1", AliceId);
+        session.AddController(new ActiveSessionController());
+        return session;
     }
 }

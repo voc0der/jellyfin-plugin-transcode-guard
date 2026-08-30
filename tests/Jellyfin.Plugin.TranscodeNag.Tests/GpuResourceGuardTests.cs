@@ -225,6 +225,21 @@ public class GpuResourceGuardTests
     }
 
     [Fact]
+    public async Task DenialMessage_UsesGpuGuardStickySetting()
+    {
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+        var config = EnabledConfig();
+        config.UseStickyGpuGuardMessages = true;
+        var guard = CreateGuard(config, provider, messages);
+
+        Assert.False(await guard.IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None));
+
+        Assert.True(Assert.Single(messages.SentMessages).UseStickyMessages);
+    }
+
+    [Fact]
     public async Task DenialMessage_LeaksNoServerSideDetail()
     {
         var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
