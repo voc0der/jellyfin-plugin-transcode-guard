@@ -48,7 +48,7 @@ internal sealed class RecordingClientMessageService : IClientMessageService
 {
     private readonly Dictionary<string, SessionInfo> _sessionsByDeviceId = new(StringComparer.Ordinal);
 
-    public List<(SessionInfo Session, MessageCommand Command)> SentMessages { get; } = new();
+    public List<(SessionInfo Session, MessageCommand Command, bool UseStickyMessages)> SentMessages { get; } = new();
 
     public void AddSession(SessionInfo session)
     {
@@ -65,16 +65,21 @@ internal sealed class RecordingClientMessageService : IClientMessageService
         return _sessionsByDeviceId.TryGetValue(deviceId, out var session) ? session : null;
     }
 
+    public void CancelPendingMessages(SessionInfo session, string? context = null)
+    {
+    }
+
     public Task<bool> SendMessageAsync(
         SessionInfo session,
         MessageCommand command,
+        bool useStickyMessages,
         string context,
         string detail,
         bool enableLogging,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        SentMessages.Add((session, command));
+        SentMessages.Add((session, command, useStickyMessages));
         return Task.FromResult(true);
     }
 }
@@ -257,15 +262,34 @@ internal sealed class ThrowingClientMessageService : IClientMessageService
 
     public SessionInfo? ResolveSession(string? deviceId, Guid userId, Guid itemId) => _session;
 
+    public void CancelPendingMessages(SessionInfo session, string? context = null)
+    {
+    }
+
     public Task<bool> SendMessageAsync(
         SessionInfo session,
         MessageCommand command,
+        bool useStickyMessages,
         string context,
         string detail,
         bool enableLogging,
         ILogger logger,
         CancellationToken cancellationToken)
         => throw new System.Net.WebSockets.WebSocketException("the remote party closed the connection");
+}
+
+internal sealed class ActiveSessionController : ISessionController
+{
+    public bool IsSessionActive => true;
+
+    public bool SupportsMediaControl => true;
+
+    public Task SendMessage<T>(
+        SessionMessageType name,
+        Guid messageId,
+        T data,
+        CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }
 
 internal static class TestSessions

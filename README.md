@@ -81,6 +81,7 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 
 - Choose which playback transcode reasons should trigger nags. Defaults focus on unsupported container, codec, subtitle, profile, level, resolution, bit depth, framerate, and related compatibility failures.
 - Set the playback message, delay, and timeout.
+- Enable **Sticky Messages** independently for playback nags, login nags, the MOTD, or GPU refusal notices when clients dismiss Jellyfin popups too quickly.
 - Enable **Exclude Live TV** if Live TV channel streams should not trigger playback nags or count toward login nags.
 - Optionally add client include/exclude filters using case-insensitive text matching. If the include list is empty, all clients are eligible; exclude matches always win.
 - If you want login nags, enable them and set the threshold, time window, and message. The login message supports `{{transcodes}}` and `{{timewindow}}`.
@@ -96,6 +97,7 @@ Open **Dashboard** → **Plugins** → **Transcode Nag**.
 - If a user returns to direct play after a bad transcode, login nags are suppressed until they regress again.
 - The MOTD is sent once per session at login and is unrelated to transcode history. Sessions that were already signed in when you enabled it receive nothing until they sign in again.
 - If a user qualifies for both the MOTD and a login nag, the nag waits for the MOTD to time out first, so clients that show one message at a time still display both.
+- A sticky message is sent three times, 3 seconds apart, with a 4-second timeout per send. Non-sticky messages continue to use the configured message timeout.
 - The GPU guard only refuses NVIDIA video transcodes. Direct Play, Direct Stream, remux, audio-only, and CPU transcodes are never refused, and playback is allowed whenever free VRAM cannot be read.
 - After launch, the guard samples `nvidia-smi`'s per-process memory for the FFmpeg PID. Successful samples are logged with the job shape and budget for MiB-level calibration; if container PID namespaces prevent attribution, admission still works and the temporary reservation simply expires on its timer.
 - A refused stream returns HTTP 403 and starts no FFmpeg process. Freeing GPU memory restores playback on the next attempt, with no setting change or restart.

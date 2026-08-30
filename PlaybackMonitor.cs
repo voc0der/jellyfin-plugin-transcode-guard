@@ -18,6 +18,8 @@ namespace Jellyfin.Plugin.TranscodeNag;
 
 public class PlaybackMonitor : IHostedService
 {
+    private const string PlaybackNagMessageContext = "playback nag";
+
     private readonly ISessionManager _sessionManager;
     private readonly IClientMessageService _clientMessageService;
     private readonly ILogger<PlaybackMonitor> _logger;
@@ -223,13 +225,13 @@ public class PlaybackMonitor : IHostedService
 
             var playbackKey = $"{session.Id}_{session.NowPlayingItem.Id}";
 
-            if (!IsItemAllowed(session, config, "playback nag"))
+            if (!IsItemAllowed(session, config, PlaybackNagMessageContext))
             {
                 _naggedPlaybacks.Remove(playbackKey);
                 return;
             }
 
-            if (!IsClientAllowed(session, config, "playback nag"))
+            if (!IsClientAllowed(session, config, PlaybackNagMessageContext))
             {
                 _naggedPlaybacks.Remove(playbackKey);
                 return;
@@ -268,6 +270,11 @@ public class PlaybackMonitor : IHostedService
 
     private void OnPlaybackStopped(object? sender, PlaybackStopEventArgs e)
     {
+        if (e.Session != null)
+        {
+            _clientMessageService.CancelPendingMessages(e.Session, PlaybackNagMessageContext);
+        }
+
         if (e.Session?.Id != null && e.Item?.Id != null)
         {
             var playbackKey = $"{e.Session.Id}_{e.Item.Id}";
@@ -370,7 +377,8 @@ public class PlaybackMonitor : IHostedService
                 Text = ResolveNagMessage(session, config),
                 TimeoutMs = config.MessageTimeoutMs
             },
-            "playback nag",
+            config.UseStickyPlaybackMessages,
+            PlaybackNagMessageContext,
             $"Reasons: {transcodeReasons}").ConfigureAwait(false);
     }
 
@@ -378,6 +386,7 @@ public class PlaybackMonitor : IHostedService
         SessionInfo session,
         Configuration.PluginConfiguration config,
         MessageCommand command,
+        bool useStickyMessages,
         string context,
         string detail)
     {
@@ -386,6 +395,7 @@ public class PlaybackMonitor : IHostedService
         return _clientMessageService.SendMessageAsync(
             session,
             command,
+            useStickyMessages,
             context,
             detail,
             config.EnableLogging,
@@ -532,7 +542,10 @@ public class PlaybackMonitor : IHostedService
                 if (motdSent && config.EnableLoginNag)
                 {
                     // Clamped because MessageTimeoutMs is only range-checked by the config UI.
-                    await Task.Delay(Math.Clamp(config.MessageTimeoutMs, 0, MaxMotdFollowUpDelayMs)).ConfigureAwait(false);
+                    var motdVisibilityDurationMs = MessageDeliveryPolicy.GetEffectiveVisibilityDurationMs(
+                        config.UseStickyMotdMessages,
+                        config.MessageTimeoutMs);
+                    await Task.Delay(Math.Clamp(motdVisibilityDurationMs, 0, MaxMotdFollowUpDelayMs)).ConfigureAwait(false);
                 }
 
                 // A session can end (and its deterministic ID can be reused) while waiting for
@@ -564,6 +577,8 @@ public class PlaybackMonitor : IHostedService
         {
             return;
         }
+
+        _clientMessageService.CancelPendingMessages(session);
 
         lock (_sessionNotificationLock)
         {
@@ -639,6 +654,7 @@ public class PlaybackMonitor : IHostedService
                     Text = config.MotdMessage,
                     TimeoutMs = config.MessageTimeoutMs
                 },
+                config.UseStickyMotdMessages,
                 "motd",
                 "Message of the day").ConfigureAwait(false);
         }
@@ -728,6 +744,7 @@ public class PlaybackMonitor : IHostedService
                 Text = message,
                 TimeoutMs = config.MessageTimeoutMs
             },
+            config.UseStickyLoginNagMessages,
             "login/open nag",
             $"{status.BadTranscodeCount} bad transcodes in last {timeWindowText}").ConfigureAwait(false);
 

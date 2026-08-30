@@ -15,6 +15,14 @@
                         <div class="fieldDescription">Message to display to users who are transcoding due to unsupported formats.</div>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="chkUseStickyPlaybackMessages" name="chkUseStickyPlaybackMessages" />
+                            <span>Sticky Messages</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Sends each playback warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                    </div>
+
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="txtDelaySeconds">Delay Before Check (seconds):</label>
                         <input type="number" id="txtDelaySeconds" name="txtDelaySeconds" min="1" max="30" class="emby-input" />
@@ -24,7 +32,7 @@
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="txtMessageTimeout">Message Timeout (ms):</label>
                         <input type="number" id="txtMessageTimeout" name="txtMessageTimeout" min="3000" max="30000" class="emby-input" />
-                        <div class="fieldDescription">How long the nag message stays visible (3000-30000 ms).</div>
+                        <div class="fieldDescription">How long non-sticky messages stay visible (3000-30000 ms). Sticky messages use their fixed 4-second timeout.</div>
                     </div>
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
@@ -108,6 +116,14 @@
                         <div class="fieldDescription">Message shown on login. Use {{transcodes}} for transcode count and {{timewindow}} for time window.</div>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="chkUseStickyLoginNagMessages" name="chkUseStickyLoginNagMessages" />
+                            <span>Sticky Messages</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Sends each login warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                    </div>
+
                     <h2>User Exclusions</h2>
 
                     <div class="fieldDescription" style="margin-bottom: 10px;">
@@ -151,7 +167,15 @@
                         <div class="selectContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtMotdMessage">MOTD Message:</label>
                             <textarea id="txtMotdMessage" name="txtMotdMessage" rows="4" class="emby-input"></textarea>
-                            <div class="fieldDescription">Message shown at login. Uses the same message timeout as nag messages.</div>
+                            <div class="fieldDescription">Message shown at login. Non-sticky MOTD messages use the shared message timeout.</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyMotdMessages" name="chkUseStickyMotdMessages" />
+                                <span>Sticky Messages</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Sends the MOTD three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
                         </div>
 
                         <div class="fieldDescription" style="margin-bottom: 10px;">
@@ -224,6 +248,14 @@
                             <label class="inputLabel inputLabelUnfocused" for="txtGpuGuardDeniedMessage">Refusal Message:</label>
                             <textarea id="txtGpuGuardDeniedMessage" name="txtGpuGuardDeniedMessage" rows="3" class="emby-input"></textarea>
                             <div class="fieldDescription">Keep this free of server detail. VRAM figures, encoder names, and FFmpeg errors belong in the server log.</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyGpuGuardMessages" name="chkUseStickyGpuGuardMessages" />
+                                <span>Sticky Messages</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
                         </div>
                     </div>
 
@@ -931,6 +963,7 @@
                 GpuGuardSection.init();
                 ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function (config) {
                     document.getElementById('txtNagMessage').value = config.NagMessage || '';
+                    document.getElementById('chkUseStickyPlaybackMessages').checked = config.UseStickyPlaybackMessages === true;
                     document.getElementById('txtDelaySeconds').value = config.DelaySeconds || 5;
                     document.getElementById('txtMessageTimeout').value = config.MessageTimeoutMs || 10000;
                     document.getElementById('chkEnableLogging').checked = config.EnableLogging || false;
@@ -941,8 +974,10 @@
                     document.getElementById('txtLoginNagThreshold').value = config.LoginNagThreshold || 5;
                     document.getElementById('selectLoginNagTimeWindow').value = config.LoginNagTimeWindow || 'Week';
                     document.getElementById('txtLoginNagMessage').value = config.LoginNagMessage || '';
+                    document.getElementById('chkUseStickyLoginNagMessages').checked = config.UseStickyLoginNagMessages === true;
                     document.getElementById('chkEnableMotd').checked = config.EnableMotd === true;
                     document.getElementById('txtMotdMessage').value = config.MotdMessage || '';
+                    document.getElementById('chkUseStickyMotdMessages').checked = config.UseStickyMotdMessages === true;
                     document.getElementById('txtMotdIncludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdIncludedClientPatterns);
                     document.getElementById('txtMotdExcludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdExcludedClientPatterns);
                     document.getElementById('chkEnableGpuResourceGuard').checked = config.EnableGpuResourceGuard === true;
@@ -951,6 +986,7 @@
                     document.getElementById('txtNvidiaSmiPath').value = config.NvidiaSmiPath || '';
                     document.getElementById('txtGpuGuardDeniedHeader').value = config.GpuGuardDeniedHeader || '';
                     document.getElementById('txtGpuGuardDeniedMessage').value = config.GpuGuardDeniedMessage || '';
+                    document.getElementById('chkUseStickyGpuGuardMessages').checked = config.UseStickyGpuGuardMessages === true;
                     MotdSection.updateVisibility();
                     GpuGuardSection.updateVisibility();
                     ReasonSelector.render(config.AlertTranscodeReasons, config.ReasonMessageOverrides);
@@ -966,6 +1002,7 @@
 
                 ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function (config) {
                     config.NagMessage = document.getElementById('txtNagMessage').value;
+                    config.UseStickyPlaybackMessages = document.getElementById('chkUseStickyPlaybackMessages').checked;
                     config.DelaySeconds = parseInt(document.getElementById('txtDelaySeconds').value);
                     config.MessageTimeoutMs = parseInt(document.getElementById('txtMessageTimeout').value);
                     config.EnableLogging = document.getElementById('chkEnableLogging').checked;
@@ -976,8 +1013,10 @@
                     config.LoginNagThreshold = parseInt(document.getElementById('txtLoginNagThreshold').value);
                     config.LoginNagTimeWindow = document.getElementById('selectLoginNagTimeWindow').value;
                     config.LoginNagMessage = document.getElementById('txtLoginNagMessage').value;
+                    config.UseStickyLoginNagMessages = document.getElementById('chkUseStickyLoginNagMessages').checked;
                     config.EnableMotd = document.getElementById('chkEnableMotd').checked;
                     config.MotdMessage = document.getElementById('txtMotdMessage').value;
+                    config.UseStickyMotdMessages = document.getElementById('chkUseStickyMotdMessages').checked;
                     config.MotdIncludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdIncludedClientPatterns').value);
                     config.MotdExcludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdExcludedClientPatterns').value);
                     config.EnableGpuResourceGuard = document.getElementById('chkEnableGpuResourceGuard').checked;
@@ -986,6 +1025,7 @@
                     config.NvidiaSmiPath = document.getElementById('txtNvidiaSmiPath').value.trim();
                     config.GpuGuardDeniedHeader = document.getElementById('txtGpuGuardDeniedHeader').value;
                     config.GpuGuardDeniedMessage = document.getElementById('txtGpuGuardDeniedMessage').value;
+                    config.UseStickyGpuGuardMessages = document.getElementById('chkUseStickyGpuGuardMessages').checked;
                     config.AlertTranscodeReasons = ReasonSelector.getSelectedReasonNames();
                     config.ReasonMessageOverrides = ReasonSelector.getReasonMessageOverrides();
 
