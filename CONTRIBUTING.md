@@ -1,4 +1,4 @@
-# Contributing to Jellyfin Transcode Nag
+# Contributing to Jellyfin Transcode Guard
 
 Issues and pull requests are welcome!
 

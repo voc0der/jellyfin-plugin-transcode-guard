@@ -1,23 +1,23 @@
 <p align="center">
-  <img src="icon.png" alt="jellyfin-transcode-nag icon" width="180" />
+  <img src="icon.png" alt="jellyfin-plugin-transcode-guard icon" width="180" />
 </p>
 
-# Jellyfin Transcode Nag Plugin
+# Jellyfin Transcode Guard Plugin
 
 <p align="center">
-  <a href="https://github.com/voc0der/jellyfin-transcode-nag/releases/latest">
-    <img src="https://img.shields.io/github/v/release/voc0der/jellyfin-transcode-nag?label=stable%20release" alt="Stable release version" />
+  <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/latest">
+    <img src="https://img.shields.io/github/v/release/voc0der/jellyfin-plugin-transcode-guard?label=stable%20release" alt="Stable release version" />
   </a>
-  <a href="https://github.com/voc0der/jellyfin-transcode-nag/tree/main/tests">
+  <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/tree/main/tests">
     <img src="https://img.shields.io/badge/coverage-65%25-yellowgreen" alt="Code coverage percentage" />
   </a>
-  <a href="https://github.com/voc0der/jellyfin-transcode-nag/issues">
-    <img src="https://img.shields.io/github/issues/voc0der/jellyfin-transcode-nag?color=DAA520" alt="Open issues" />
+  <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/issues">
+    <img src="https://img.shields.io/github/issues/voc0der/jellyfin-plugin-transcode-guard?color=DAA520" alt="Open issues" />
   </a>
   <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/voc0der/jellyfin-transcode-nag?color=97CA00" alt="License" />
+    <img src="https://img.shields.io/github/license/voc0der/jellyfin-plugin-transcode-guard?color=97CA00" alt="License" />
   </a>
-  <a href="https://github.com/voc0der/jellyfin-transcode-nag/blob/main/Jellyfin.Plugin.TranscodeNag.csproj">
+  <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/blob/main/Jellyfin.Plugin.TranscodeNag.csproj">
     <img src="https://img.shields.io/badge/dependencies-2%20outdated-orange" alt="Dependencies status" />
   </a>
 </p>
@@ -25,21 +25,21 @@
 A Jellyfin plugin that intelligently nags users when they're transcoding due to **unsupported formats or codecs**, while allowing bitrate-based transcoding to pass through without harassment.
 
 <p align="center">
-  <img src="docs/images/transcode-nag-playback-settings.png" alt="Transcode Nag playback settings and trigger reasons in the Jellyfin dashboard" width="880" />
+  <img src="docs/images/transcode-guard-playback-settings.png" alt="Transcode Guard playback settings and trigger reasons in the Jellyfin dashboard" width="880" />
 </p>
 <p align="center">
   <em>Playback nag configuration and trigger reason selection</em>
 </p>
 
 <p align="center">
-  <img src="docs/images/transcode-nag-login-monitor.png" alt="Transcode Nag login settings, exclusions, and live session monitor in the Jellyfin dashboard" width="880" />
+  <img src="docs/images/transcode-guard-login-monitor.png" alt="Transcode Guard login settings, exclusions, and live session monitor in the Jellyfin dashboard" width="880" />
 </p>
 <p align="center">
   <em>Login nags, user exclusions, and the live session monitor</em>
 </p>
 
 <p align="center">
-  <img src="docs/images/transcode-nag-gpu-guard.png" alt="Transcode Nag GPU resource guard settings in the Jellyfin dashboard" width="880" />
+  <img src="docs/images/transcode-guard-gpu-guard.png" alt="Transcode Guard GPU resource guard settings in the Jellyfin dashboard" width="880" />
 </p>
 <p align="center">
   <em>GPU resource guard settings</em>
@@ -61,13 +61,13 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 ### Plugin Repository
 
 1. Go to **Dashboard** → **Plugins** → **Repositories**
-2. Add `https://raw.githubusercontent.com/voc0der/jellyfin-transcode-nag/main/manifest.json`
-3. Install **Transcode Nag** from **Catalog**
+2. Add `https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/manifest.json`
+3. Install **Transcode Guard** from **Catalog**
 4. Restart Jellyfin
 
 ### Manual
 
-1. Download the latest ZIP from the [Releases page](https://github.com/voc0der/jellyfin-transcode-nag/releases/latest)
+1. Download the latest ZIP from the [Releases page](https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/latest)
 2. Extract it into your Jellyfin plugins directory:
    - Linux: `/var/lib/jellyfin/plugins/`
    - Windows: `%AppData%\Jellyfin\Server\plugins\`
@@ -84,7 +84,7 @@ Copy `bin/Release/net8.0/Jellyfin.Plugin.TranscodeNag.dll` into a versioned plug
 
 ## Configuration
 
-Open **Dashboard** → **Plugins** → **Transcode Nag**.
+Open **Dashboard** → **Plugins** → **Transcode Guard**.
 
 - Choose which playback transcode reasons should trigger nags. Defaults focus on unsupported container, codec, subtitle, profile, level, resolution, bit depth, framerate, and related compatibility failures.
 - Set the playback message, delay, and timeout.
