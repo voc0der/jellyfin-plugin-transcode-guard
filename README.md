@@ -55,6 +55,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 - Includes a live session monitor in the plugin settings page.
 - Can broadcast an optional Message of the Day to users at login, with its own user exclusions and client filters.
 - Can refuse an NVIDIA hardware transcode before FFmpeg starts when that job's conservative VRAM budget will not fit.
+- Can stop a transcode that has been left paused past a configurable timeout, so its FFmpeg process stops holding VRAM, an encoder session, and its output files for a viewer who is not coming back.
 
 ## Installation
 
@@ -97,6 +98,7 @@ Open **Dashboard** → **Plugins** → **Transcode Guard**.
 - If you want login nags, enable them and set the threshold, time window, and message. The login message supports `{{transcodes}}` and `{{timewindow}}`.
 - Use **Manage Excluded Users** to opt users out of both playback and login nags.
 - Use the built-in live session monitor to see which active sessions currently match your rules.
+- Enable the **Paused Transcode Reaper** (off by default) to stop transcodes left paused past a timeout, 25 minutes by default. The client is asked to stop first, which leaves the resume point the last progress report saved; a client that ignores that has its FFmpeg job ended server-side. Neither path signs the user out or removes their device. It applies to every paused transcode, including Live TV and CPU transcodes, and never touches direct play. Optionally warn the viewer first with a popup supporting `{{minutes}}`, and use **Manage Excluded Users (Paused Transcodes)** to leave chosen users' paused streams alone.
 - Enable **Message of the Day** (off by default) to send an announcement to everyone at login. Its options stay collapsed until the toggle is on, and it has its own message, its own **Manage Excluded Users (MOTD)** list, and its own client include/exclude filters, all independent of the nag settings.
 - Enable **GPU resource guard** (off by default) to set the fallback GPU index, nvidia-smi timeout and path, and the message a refused client sees. The guard reads current free memory immediately before launch and automatically budgets each job from its source, CUDA filters, and output instead of using a fixed free-VRAM threshold. An explicit GPU selected by FFmpeg overrides the fallback index. `nvidia-smi` must be runnable by the Jellyfin server process.
 

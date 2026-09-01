@@ -110,6 +110,42 @@ public class PluginConfiguration : BasePluginConfiguration
     public string GpuGuardDeniedMessage { get; set; } = "GPU resources are currently busy. Please try again later or use Direct Play.";
 
     public bool UseStickyGpuGuardMessages { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether transcodes left paused past
+    /// <see cref="PausedTranscodeTimeoutMinutes"/> are stopped. Defaults to off so upgrading the
+    /// plugin cannot start ending anyone's playback on its own.
+    /// </summary>
+    public bool EnablePausedTranscodeReaper { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets how many minutes a transcode may stay paused before it is stopped.
+    /// </summary>
+    public int PausedTranscodeTimeoutMinutes { get; set; } = 25;
+
+    /// <summary>
+    /// Gets or sets how many minutes before the deadline the warning is sent. 0 sends no warning.
+    /// </summary>
+    public int PausedTranscodeWarningMinutes { get; set; } = 2;
+
+    /// <summary>
+    /// Gets or sets the popup title shown before a paused transcode is stopped.
+    /// </summary>
+    public string PausedTranscodeWarningHeader { get; set; } = "Still there?";
+
+    /// <summary>
+    /// Gets or sets the popup body shown before a paused transcode is stopped.
+    /// Supports <c>{{minutes}}</c>.
+    /// </summary>
+    public string PausedTranscodeWarningMessage { get; set; } = "Your paused video will be stopped in {{minutes}} minute(s) to free up server resources. Press play to keep watching.";
+
+    public bool UseStickyPausedTranscodeMessages { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the users whose paused transcodes are left alone. Separate from every other
+    /// exclusion list.
+    /// </summary>
+    public string[] PausedTranscodeExcludedUserIds { get; set; } = Array.Empty<string>();
 }
 
 public class ReasonMessageOverride
