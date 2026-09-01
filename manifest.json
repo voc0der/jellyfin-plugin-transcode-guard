@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.41",
+        "changelog": "## What's Changed\n\n- chore: build the Transcode Guard rename (ddc52ce)\n- feat: present the plugin as Transcode Guard (b30a264)\n- docs: rebrand to Transcode Guard and follow the repository rename [skip ci] (7aeffdd)\n- chore: drop the dynamic VRAM implementation handoff [skip ci] (af4f3bd)\n- docs: regenerate configuration page screenshots [skip ci] (4280e05)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.40...v1.0.1.41\n",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/download/v1.0.1.41/Transcode_Nag_v1.0.1.41.zip",
+        "checksum": "3ffe339ec2301f84658ced1790bb02a5",
+        "timestamp": "2026-09-01T18:24:22Z"
+      },
+      {
         "version": "1.0.1.40",
         "changelog": "## What's Changed\n\n- fix(config): render the login nag time window select in the dark theme (608cb5c)\n- chore(deps): Bump github/codeql-action from 4.37.8 to 4.37.9 (bf61fe3)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.39...v1.0.1.40\n",
         "targetAbi": "10.9.0.0",
