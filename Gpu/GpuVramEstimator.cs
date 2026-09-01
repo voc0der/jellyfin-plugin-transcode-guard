@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// Assigns a conservative NVIDIA video-memory requirement to one FFmpeg transcode.

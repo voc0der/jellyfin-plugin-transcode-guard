@@ -1,8 +1,8 @@
-using Jellyfin.Plugin.TranscodeNag.Configuration;
-using Jellyfin.Plugin.TranscodeNag.Gpu;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Gpu;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 public class GpuResourceGuardTests
 {

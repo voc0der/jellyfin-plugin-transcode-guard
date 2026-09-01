@@ -1,6 +1,6 @@
 using System;
 
-namespace Jellyfin.Plugin.TranscodeNag.Models;
+namespace Jellyfin.Plugin.TranscodeGuard.Models;
 
 public class UserNagStatus
 {

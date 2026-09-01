@@ -1,7 +1,7 @@
-using Jellyfin.Plugin.TranscodeNag.Gpu;
+using Jellyfin.Plugin.TranscodeGuard.Gpu;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 /// <summary>
 /// Exercises the real process path against stand-in executables, so the fail-open behaviour is

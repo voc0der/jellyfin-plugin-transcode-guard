@@ -1,9 +1,9 @@
-using Jellyfin.Plugin.TranscodeNag.Configuration;
-using Jellyfin.Plugin.TranscodeNag.Data;
-using Jellyfin.Plugin.TranscodeNag.Models;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Data;
+using Jellyfin.Plugin.TranscodeGuard.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 public class TranscodeEventStoreTests
 {
@@ -93,11 +93,11 @@ public class TranscodeEventStoreTests
         var status = await harness.Store.GetUserNagStatusAsync(
             userId,
             7,
-            e => TranscodeNagRules.IsClientAllowed(e.Client, config));
+            e => TranscodeGuardRules.IsClientAllowed(e.Client, config));
         var events = await harness.Store.GetUserEventsAsync(
             userId,
             7,
-            e => TranscodeNagRules.IsClientAllowed(e.Client, config));
+            e => TranscodeGuardRules.IsClientAllowed(e.Client, config));
 
         Assert.Equal(1, status.BadTranscodeCount);
         Assert.False(status.HasImprovementCredit);
@@ -124,11 +124,11 @@ public class TranscodeEventStoreTests
         var status = await harness.Store.GetUserNagStatusAsync(
             userId,
             7,
-            e => TranscodeNagRules.IsStoredEventAllowed(e, config));
+            e => TranscodeGuardRules.IsStoredEventAllowed(e, config));
         var events = await harness.Store.GetUserEventsAsync(
             userId,
             7,
-            e => TranscodeNagRules.IsStoredEventAllowed(e, config));
+            e => TranscodeGuardRules.IsStoredEventAllowed(e, config));
 
         Assert.Equal(1, status.BadTranscodeCount);
         Assert.False(status.HasImprovementCredit);

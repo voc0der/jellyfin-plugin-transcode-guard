@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using Jellyfin.Plugin.TranscodeNag.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 
-namespace Jellyfin.Plugin.TranscodeNag;
+namespace Jellyfin.Plugin.TranscodeGuard;
 
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
@@ -18,7 +18,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public override string Name => "Transcode Guard";
 
-    public override Guid Id => Guid.Parse("fdcf27a6-bd64-42e3-9f57-41880552bf83");
+    public override Guid Id => Guid.Parse("2ce6b237-2610-4dfd-a34b-3f4c2ac64a88");
 
     public override string Description => "Nags users when they transcode due to unsupported formats (but allows bitrate transcoding)";
 

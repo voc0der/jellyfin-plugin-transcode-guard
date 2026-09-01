@@ -1,4 +1,4 @@
-namespace Jellyfin.Plugin.TranscodeNag.Models;
+namespace Jellyfin.Plugin.TranscodeGuard.Models;
 
 /// <summary>
 /// Stored alongside events.json to support rate limiting and "improvement" credits.

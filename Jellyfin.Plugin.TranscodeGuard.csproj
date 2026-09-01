@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <RootNamespace>Jellyfin.Plugin.TranscodeNag</RootNamespace>
+    <RootNamespace>Jellyfin.Plugin.TranscodeGuard</RootNamespace>
     <AssemblyVersion>1.0.1.27</AssemblyVersion>
     <FileVersion>1.0.1.27</FileVersion>
     <Version>1.0.1.27</Version>

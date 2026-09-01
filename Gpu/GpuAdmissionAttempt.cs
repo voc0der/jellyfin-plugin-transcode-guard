@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// One admission result and, when needed, its temporary in-flight VRAM reservation.

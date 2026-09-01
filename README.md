@@ -17,7 +17,7 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/github/license/voc0der/jellyfin-plugin-transcode-guard?color=97CA00" alt="License" />
   </a>
-  <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/blob/main/Jellyfin.Plugin.TranscodeNag.csproj">
+  <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/blob/main/Jellyfin.Plugin.TranscodeGuard.csproj">
     <img src="https://img.shields.io/badge/dependencies-2%20outdated-orange" alt="Dependencies status" />
   </a>
 </p>
@@ -83,7 +83,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 dotnet build --configuration Release
 ```
 
-Copy `bin/Release/net8.0/Jellyfin.Plugin.TranscodeNag.dll` into a versioned plugin folder, then restart Jellyfin.
+Copy `bin/Release/net8.0/Jellyfin.Plugin.TranscodeGuard.dll` into a versioned plugin folder, then restart Jellyfin.
 
 ## Configuration
 

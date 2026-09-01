@@ -1,12 +1,12 @@
 using System.Linq;
-using Jellyfin.Plugin.TranscodeNag.Gpu;
-using Jellyfin.Plugin.TranscodeNag.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Gpu;
+using Jellyfin.Plugin.TranscodeGuard.Messaging;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 /// <summary>
 /// A canned free-VRAM reading, plus a count of how often it was asked for.

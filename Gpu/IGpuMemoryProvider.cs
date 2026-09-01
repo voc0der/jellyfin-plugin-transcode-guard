@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// Reads free video memory for a single GPU.

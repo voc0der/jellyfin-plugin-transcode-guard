@@ -5,7 +5,7 @@ using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.TranscodeNag.Messaging;
+namespace Jellyfin.Plugin.TranscodeGuard.Messaging;
 
 /// <summary>
 /// Resolves Jellyfin sessions and delivers DisplayMessage popups to a single one of them.

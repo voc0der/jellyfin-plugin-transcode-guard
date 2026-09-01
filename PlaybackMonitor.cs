@@ -4,9 +4,9 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using Jellyfin.Plugin.TranscodeNag.Data;
-using Jellyfin.Plugin.TranscodeNag.Messaging;
-using Jellyfin.Plugin.TranscodeNag.Models;
+using Jellyfin.Plugin.TranscodeGuard.Data;
+using Jellyfin.Plugin.TranscodeGuard.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Models;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
@@ -14,7 +14,7 @@ using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.TranscodeNag;
+namespace Jellyfin.Plugin.TranscodeGuard;
 
 public class PlaybackMonitor : IHostedService
 {
@@ -250,7 +250,7 @@ public class PlaybackMonitor : IHostedService
             }
 
             // Check if transcoding is due to unsupported format/codec
-            if (TranscodeNagRules.ShouldNagTranscode(transcodeInfo, config))
+            if (TranscodeGuardRules.ShouldNagTranscode(transcodeInfo, config))
             {
                 // Record the event
                 RecordTranscodeEvent(session, transcodeInfo);
@@ -284,7 +284,7 @@ public class PlaybackMonitor : IHostedService
 
     private bool IsItemAllowed(SessionInfo session, Configuration.PluginConfiguration config, string context)
     {
-        if (TranscodeNagRules.IsItemAllowed(session.NowPlayingItem, config))
+        if (TranscodeGuardRules.IsItemAllowed(session.NowPlayingItem, config))
         {
             return true;
         }
@@ -304,7 +304,7 @@ public class PlaybackMonitor : IHostedService
 
     private bool IsClientAllowed(SessionInfo session, Configuration.PluginConfiguration config, string context)
     {
-        if (TranscodeNagRules.IsClientAllowed(session.Client, config))
+        if (TranscodeGuardRules.IsClientAllowed(session.Client, config))
         {
             return true;
         }
@@ -354,7 +354,7 @@ public class PlaybackMonitor : IHostedService
         }
 
         // Check if user is excluded from nag messages
-        if (TranscodeNagRules.IsUserExcluded(session.UserId, config.ExcludedUserIds))
+        if (TranscodeGuardRules.IsUserExcluded(session.UserId, config.ExcludedUserIds))
         {
             if (config.EnableLogging)
             {
@@ -419,7 +419,7 @@ public class PlaybackMonitor : IHostedService
             Timestamp = DateTime.UtcNow,
             Reasons = transcodeInfo.TranscodeReasons,
             Client = session.Client ?? "Unknown",
-            IsLiveTv = TranscodeNagRules.IsLiveTvItem(session.NowPlayingItem),
+            IsLiveTv = TranscodeGuardRules.IsLiveTvItem(session.NowPlayingItem),
             Kind = NagEventKind.BadTranscode
         };
 
@@ -443,7 +443,7 @@ public class PlaybackMonitor : IHostedService
                 var status = await _eventStore.GetUserNagStatusAsync(
                     session.UserId.ToString(),
                     30,
-                    e => TranscodeNagRules.IsStoredEventAllowed(e, config)).ConfigureAwait(false);
+                    e => TranscodeGuardRules.IsStoredEventAllowed(e, config)).ConfigureAwait(false);
 
                 if (!status.LastBadTranscodeUtc.HasValue)
                 {
@@ -465,7 +465,7 @@ public class PlaybackMonitor : IHostedService
                     Timestamp = DateTime.UtcNow,
                     Reasons = 0,
                     Client = session.Client ?? "Unknown",
-                    IsLiveTv = TranscodeNagRules.IsLiveTvItem(session.NowPlayingItem),
+                    IsLiveTv = TranscodeGuardRules.IsLiveTvItem(session.NowPlayingItem),
                     Kind = NagEventKind.ImprovementCredit
                 };
 
@@ -607,7 +607,7 @@ public class PlaybackMonitor : IHostedService
             return false;
         }
 
-        if (TranscodeNagRules.IsUserExcluded(session.UserId, config.MotdExcludedUserIds))
+        if (TranscodeGuardRules.IsUserExcluded(session.UserId, config.MotdExcludedUserIds))
         {
             if (config.EnableLogging)
             {
@@ -620,7 +620,7 @@ public class PlaybackMonitor : IHostedService
             return false;
         }
 
-        if (!TranscodeNagRules.IsMotdClientAllowed(session.Client, config))
+        if (!TranscodeGuardRules.IsMotdClientAllowed(session.Client, config))
         {
             if (config.EnableLogging)
             {
@@ -687,7 +687,7 @@ public class PlaybackMonitor : IHostedService
         }
 
         // Check if user is excluded from nag messages
-        if (TranscodeNagRules.IsUserExcluded(session.UserId, config.ExcludedUserIds))
+        if (TranscodeGuardRules.IsUserExcluded(session.UserId, config.ExcludedUserIds))
         {
             if (config.EnableLogging)
             {
@@ -705,12 +705,12 @@ public class PlaybackMonitor : IHostedService
 
         var userId = session.UserId.ToString();
 
-        var (days, timeWindowText) = TranscodeNagRules.ResolveLoginNagWindow(config.LoginNagTimeWindow);
+        var (days, timeWindowText) = TranscodeGuardRules.ResolveLoginNagWindow(config.LoginNagTimeWindow);
 
         var status = await _eventStore.GetUserNagStatusAsync(
             userId,
             days,
-            e => TranscodeNagRules.IsStoredEventAllowed(e, config)).ConfigureAwait(false);
+            e => TranscodeGuardRules.IsStoredEventAllowed(e, config)).ConfigureAwait(false);
 
         // Rate limit: only once per configured period.
         if (status.NaggedRecently)
@@ -730,7 +730,7 @@ public class PlaybackMonitor : IHostedService
             return;
         }
 
-        var message = TranscodeNagRules.FormatLoginNagMessage(
+        var message = TranscodeGuardRules.FormatLoginNagMessage(
             config.LoginNagMessage,
             status.BadTranscodeCount,
             timeWindowText);

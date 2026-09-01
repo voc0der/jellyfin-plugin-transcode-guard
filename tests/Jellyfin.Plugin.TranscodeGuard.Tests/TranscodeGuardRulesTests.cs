@@ -1,17 +1,17 @@
 using Jellyfin.Data.Enums;
-using Jellyfin.Plugin.TranscodeNag.Configuration;
-using Jellyfin.Plugin.TranscodeNag.Models;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Models;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Session;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
-public class TranscodeNagRulesTests
+public class TranscodeGuardRulesTests
 {
     [Fact]
     public void BuildConfiguredNagReasonMask_UsesDefaultsWhenConfigurationIsNull()
     {
-        var mask = TranscodeNagRules.BuildConfiguredNagReasonMask(null);
+        var mask = TranscodeGuardRules.BuildConfiguredNagReasonMask(null);
 
         Assert.NotEqual((TranscodeReason)0, mask);
         Assert.True(mask.HasFlag(TranscodeReason.ContainerNotSupported));
@@ -22,7 +22,7 @@ public class TranscodeNagRulesTests
     [Fact]
     public void BuildConfiguredNagReasonMask_IgnoresEmptyAndUnknownReasons()
     {
-        var mask = TranscodeNagRules.BuildConfiguredNagReasonMask(
+        var mask = TranscodeGuardRules.BuildConfiguredNagReasonMask(
             new[]
             {
                 "VideoCodecNotSupported",
@@ -61,9 +61,9 @@ public class TranscodeNagRulesTests
             TranscodeReasons = (TranscodeReason)0
         };
 
-        Assert.True(TranscodeNagRules.ShouldNagTranscode(matching, config));
-        Assert.False(TranscodeNagRules.ShouldNagTranscode(nonMatching, config));
-        Assert.False(TranscodeNagRules.ShouldNagTranscode(noReasons, config));
+        Assert.True(TranscodeGuardRules.ShouldNagTranscode(matching, config));
+        Assert.False(TranscodeGuardRules.ShouldNagTranscode(nonMatching, config));
+        Assert.False(TranscodeGuardRules.ShouldNagTranscode(noReasons, config));
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public class TranscodeNagRulesTests
             ExcludedClientPatterns = new[] { "android tv" }
         };
 
-        Assert.True(TranscodeNagRules.IsClientAllowed("Jellyfin Web", config));
-        Assert.False(TranscodeNagRules.IsClientAllowed("Jellyfin Android TV", config));
+        Assert.True(TranscodeGuardRules.IsClientAllowed("Jellyfin Web", config));
+        Assert.False(TranscodeGuardRules.IsClientAllowed("Jellyfin Android TV", config));
     }
 
     [Fact]
@@ -87,11 +87,11 @@ public class TranscodeNagRulesTests
             ExcludedClientPatterns = new[] { "chrome" }
         };
 
-        Assert.True(TranscodeNagRules.IsClientAllowed("Jellyfin Web", config));
-        Assert.True(TranscodeNagRules.IsClientAllowed("Firefox Browser", config));
-        Assert.False(TranscodeNagRules.IsClientAllowed("Jellyfin Android TV", config));
-        Assert.False(TranscodeNagRules.IsClientAllowed("Chrome Web", config));
-        Assert.False(TranscodeNagRules.IsClientAllowed(null, config));
+        Assert.True(TranscodeGuardRules.IsClientAllowed("Jellyfin Web", config));
+        Assert.True(TranscodeGuardRules.IsClientAllowed("Firefox Browser", config));
+        Assert.False(TranscodeGuardRules.IsClientAllowed("Jellyfin Android TV", config));
+        Assert.False(TranscodeGuardRules.IsClientAllowed("Chrome Web", config));
+        Assert.False(TranscodeGuardRules.IsClientAllowed(null, config));
     }
 
     [Fact]
@@ -105,9 +105,9 @@ public class TranscodeNagRulesTests
             MotdExcludedClientPatterns = new[] { "roku" }
         };
 
-        Assert.True(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Android TV", config));
-        Assert.False(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Web", config));
-        Assert.False(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Roku", config));
+        Assert.True(TranscodeGuardRules.IsMotdClientAllowed("Jellyfin Android TV", config));
+        Assert.False(TranscodeGuardRules.IsMotdClientAllowed("Jellyfin Web", config));
+        Assert.False(TranscodeGuardRules.IsMotdClientAllowed("Jellyfin Roku", config));
     }
 
     [Fact]
@@ -118,9 +118,9 @@ public class TranscodeNagRulesTests
             ExcludedClientPatterns = new[] { "android tv" }
         };
 
-        Assert.True(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Android TV", config));
-        Assert.True(TranscodeNagRules.IsMotdClientAllowed("Jellyfin Web", config));
-        Assert.True(TranscodeNagRules.IsMotdClientAllowed(null, config));
+        Assert.True(TranscodeGuardRules.IsMotdClientAllowed("Jellyfin Android TV", config));
+        Assert.True(TranscodeGuardRules.IsMotdClientAllowed("Jellyfin Web", config));
+        Assert.True(TranscodeGuardRules.IsMotdClientAllowed(null, config));
     }
 
     [Fact]
@@ -128,24 +128,24 @@ public class TranscodeNagRulesTests
     {
         var userId = Guid.NewGuid();
 
-        Assert.True(TranscodeNagRules.IsUserExcluded(userId, new[] { userId.ToString("N") }));
-        Assert.True(TranscodeNagRules.IsUserExcluded(userId, new[] { userId.ToString("D") }));
-        Assert.True(TranscodeNagRules.IsUserExcluded(userId, new[] { " ", userId.ToString("N").ToUpperInvariant() }));
-        Assert.False(TranscodeNagRules.IsUserExcluded(userId, new[] { Guid.NewGuid().ToString("N") }));
-        Assert.False(TranscodeNagRules.IsUserExcluded(userId, Array.Empty<string>()));
-        Assert.False(TranscodeNagRules.IsUserExcluded(userId, null));
-        Assert.False(TranscodeNagRules.IsUserExcluded(Guid.Empty, new[] { Guid.Empty.ToString("N") }));
+        Assert.True(TranscodeGuardRules.IsUserExcluded(userId, new[] { userId.ToString("N") }));
+        Assert.True(TranscodeGuardRules.IsUserExcluded(userId, new[] { userId.ToString("D") }));
+        Assert.True(TranscodeGuardRules.IsUserExcluded(userId, new[] { " ", userId.ToString("N").ToUpperInvariant() }));
+        Assert.False(TranscodeGuardRules.IsUserExcluded(userId, new[] { Guid.NewGuid().ToString("N") }));
+        Assert.False(TranscodeGuardRules.IsUserExcluded(userId, Array.Empty<string>()));
+        Assert.False(TranscodeGuardRules.IsUserExcluded(userId, null));
+        Assert.False(TranscodeGuardRules.IsUserExcluded(Guid.Empty, new[] { Guid.Empty.ToString("N") }));
     }
 
     [Fact]
     public void IsLiveTvItem_DetectsLiveAndLiveTvItemTypes()
     {
-        Assert.True(TranscodeNagRules.IsLiveTvItem(new BaseItemDto { IsLive = true, Type = BaseItemKind.Movie }));
-        Assert.True(TranscodeNagRules.IsLiveTvItem(new BaseItemDto { Type = BaseItemKind.TvChannel }));
-        Assert.True(TranscodeNagRules.IsLiveTvItem(new BaseItemDto { Type = BaseItemKind.LiveTvProgram }));
-        Assert.True(TranscodeNagRules.IsLiveTvItem(new BaseItemDto { Type = BaseItemKind.TvProgram }));
-        Assert.False(TranscodeNagRules.IsLiveTvItem(new BaseItemDto { Type = BaseItemKind.Movie }));
-        Assert.False(TranscodeNagRules.IsLiveTvItem(null));
+        Assert.True(TranscodeGuardRules.IsLiveTvItem(new BaseItemDto { IsLive = true, Type = BaseItemKind.Movie }));
+        Assert.True(TranscodeGuardRules.IsLiveTvItem(new BaseItemDto { Type = BaseItemKind.TvChannel }));
+        Assert.True(TranscodeGuardRules.IsLiveTvItem(new BaseItemDto { Type = BaseItemKind.LiveTvProgram }));
+        Assert.True(TranscodeGuardRules.IsLiveTvItem(new BaseItemDto { Type = BaseItemKind.TvProgram }));
+        Assert.False(TranscodeGuardRules.IsLiveTvItem(new BaseItemDto { Type = BaseItemKind.Movie }));
+        Assert.False(TranscodeGuardRules.IsLiveTvItem(null));
     }
 
     [Fact]
@@ -153,11 +153,11 @@ public class TranscodeNagRulesTests
     {
         var liveTvItem = new BaseItemDto { Type = BaseItemKind.TvChannel };
 
-        Assert.True(TranscodeNagRules.IsItemAllowed(liveTvItem, new PluginConfiguration()));
-        Assert.False(TranscodeNagRules.IsItemAllowed(
+        Assert.True(TranscodeGuardRules.IsItemAllowed(liveTvItem, new PluginConfiguration()));
+        Assert.False(TranscodeGuardRules.IsItemAllowed(
             liveTvItem,
             new PluginConfiguration { ExcludeLiveTv = true }));
-        Assert.True(TranscodeNagRules.IsItemAllowed(
+        Assert.True(TranscodeGuardRules.IsItemAllowed(
             new BaseItemDto { Type = BaseItemKind.Movie },
             new PluginConfiguration { ExcludeLiveTv = true }));
     }
@@ -171,13 +171,13 @@ public class TranscodeNagRulesTests
             ExcludedClientPatterns = new[] { "android tv" }
         };
 
-        Assert.True(TranscodeNagRules.IsStoredEventAllowed(
+        Assert.True(TranscodeGuardRules.IsStoredEventAllowed(
             new TranscodeEvent { Client = "Jellyfin Web" },
             config));
-        Assert.False(TranscodeNagRules.IsStoredEventAllowed(
+        Assert.False(TranscodeGuardRules.IsStoredEventAllowed(
             new TranscodeEvent { Client = "Jellyfin Web", IsLiveTv = true },
             config));
-        Assert.False(TranscodeNagRules.IsStoredEventAllowed(
+        Assert.False(TranscodeGuardRules.IsStoredEventAllowed(
             new TranscodeEvent { Client = "Jellyfin Android TV" },
             config));
     }
@@ -185,15 +185,15 @@ public class TranscodeNagRulesTests
     [Fact]
     public void ResolveLoginNagWindow_MapsMonthAndFallsBackToWeek()
     {
-        Assert.Equal((30, "month"), TranscodeNagRules.ResolveLoginNagWindow("Month"));
-        Assert.Equal((7, "week"), TranscodeNagRules.ResolveLoginNagWindow("Week"));
-        Assert.Equal((7, "week"), TranscodeNagRules.ResolveLoginNagWindow("anything-else"));
+        Assert.Equal((30, "month"), TranscodeGuardRules.ResolveLoginNagWindow("Month"));
+        Assert.Equal((7, "week"), TranscodeGuardRules.ResolveLoginNagWindow("Week"));
+        Assert.Equal((7, "week"), TranscodeGuardRules.ResolveLoginNagWindow("anything-else"));
     }
 
     [Fact]
     public void FormatLoginNagMessage_ReplacesBothPlaceholders()
     {
-        var message = TranscodeNagRules.FormatLoginNagMessage(
+        var message = TranscodeGuardRules.FormatLoginNagMessage(
             "Bad transcodes: {{transcodes}} this {{timewindow}}.",
             4,
             "month");

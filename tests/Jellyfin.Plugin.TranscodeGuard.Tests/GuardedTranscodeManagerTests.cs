@@ -1,6 +1,6 @@
-using Jellyfin.Plugin.TranscodeNag.Configuration;
-using Jellyfin.Plugin.TranscodeNag.Gpu;
-using Jellyfin.Plugin.TranscodeNag.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Gpu;
+using Jellyfin.Plugin.TranscodeGuard.Messaging;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Streaming;
@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 public class GuardedTranscodeManagerTests
 {

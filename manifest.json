@@ -1,11 +1,21 @@
 [
   {
     "category": "General",
+    "guid": "2ce6b237-2610-4dfd-a34b-3f4c2ac64a88",
+    "name": "Transcode Guard",
+    "description": "Intelligently alerts users when they transcode due to unsupported formats/codecs, while allowing bitrate-based transcoding without harassment. Successor to Transcode Nag, with a separate plugin identity: it installs alongside the old plugin rather than updating it, and does not carry its configuration over.",
+    "owner": "voc0der",
+    "overview": "Smart transcoding monitor that only alerts for format/codec incompatibility",
+    "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
+    "versions": []
+  },
+  {
+    "category": "General",
     "guid": "fdcf27a6-bd64-42e3-9f57-41880552bf83",
     "name": "Transcode Nag",
-    "description": "Intelligently nags users when they transcode due to unsupported formats/codecs, while allowing bitrate-based transcoding without harassment.",
+    "description": "No longer maintained. This entry is frozen at 1.0.1.40 so existing installations keep working and are never offered an update. Its successor, Transcode Guard, is a separate plugin with its own identity: installing it will not touch this one, and it does not carry configuration over. Configure it once, then uninstall this plugin.",
     "owner": "voc0der",
-    "overview": "Smart transcoding monitor that only nags for format/codec incompatibility",
+    "overview": "Retired -- superseded by Transcode Guard, which installs alongside it",
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
     "versions": [
       {

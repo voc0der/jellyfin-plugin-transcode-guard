@@ -4,11 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
-using Jellyfin.Plugin.TranscodeNag.Models;
+using Jellyfin.Plugin.TranscodeGuard.Models;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.TranscodeNag.Data;
+namespace Jellyfin.Plugin.TranscodeGuard.Data;
 
 public class TranscodeEventStore
 {
@@ -25,7 +25,7 @@ public class TranscodeEventStore
 
     private string GetDataFilePath()
     {
-        var dataDir = Path.GetFullPath(Path.Join(_appPaths.DataPath, "plugins", "data", "TranscodeNag"));
+        var dataDir = Path.GetFullPath(Path.Join(_appPaths.DataPath, "plugins", "data", "TranscodeGuard"));
         Directory.CreateDirectory(dataDir);
 
         // Keep file segment normalized so future refactors cannot inject rooted paths here.

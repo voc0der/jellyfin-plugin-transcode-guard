@@ -6,7 +6,7 @@ using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Streaming;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// Wraps Jellyfin's <see cref="ITranscodeManager"/> so the GPU guard runs immediately before

@@ -1,7 +1,7 @@
 using System;
 using MediaBrowser.Model.Session;
 
-namespace Jellyfin.Plugin.TranscodeNag.Models;
+namespace Jellyfin.Plugin.TranscodeGuard.Models;
 
 public class TranscodeEvent
 {

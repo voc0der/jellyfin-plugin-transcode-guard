@@ -1,6 +1,6 @@
 using System;
 
-namespace Jellyfin.Plugin.TranscodeNag.Messaging;
+namespace Jellyfin.Plugin.TranscodeGuard.Messaging;
 
 /// <summary>
 /// Defines the fixed compatibility behavior used by opt-in sticky messages.

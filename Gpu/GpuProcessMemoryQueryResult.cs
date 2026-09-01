@@ -1,4 +1,4 @@
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// Outcome of attributing NVIDIA memory to one operating-system process.

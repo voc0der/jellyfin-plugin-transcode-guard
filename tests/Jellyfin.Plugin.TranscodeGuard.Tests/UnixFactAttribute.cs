@@ -1,4 +1,4 @@
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 /// <summary>
 /// A fact that is reported as skipped on Windows, for tests that need a POSIX shell to stand in

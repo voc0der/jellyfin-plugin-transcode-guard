@@ -1,6 +1,6 @@
 using MediaBrowser.Common.Configuration;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 internal sealed class TestApplicationPaths : IApplicationPaths
 {
