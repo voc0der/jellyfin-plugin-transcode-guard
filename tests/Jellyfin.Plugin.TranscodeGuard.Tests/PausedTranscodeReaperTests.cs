@@ -473,27 +473,34 @@ public class PausedTranscodeReaperTests
         {
             Messages = new RecordingClientMessageService();
 
+            // Null stands for a server whose ITranscodeManager could not be resolved.
+            Func<string, Task>? transcodeKiller = null;
+            if (transcodeKillerAvailable)
+            {
+                transcodeKiller = deviceId =>
+                {
+                    Killed.Add(deviceId);
+                    return Task.CompletedTask;
+                };
+            }
+
             Reaper = new PausedTranscodeReaper(
                 () => sessions,
-                (session, _) =>
-                {
-                    if (ReferenceEquals(session, FailStopFor))
-                    {
-                        throw new InvalidOperationException("session is gone");
-                    }
-
-                    Stopped.Add(session);
-                    return Task.CompletedTask;
-                },
-                transcodeKillerAvailable
-                    ? deviceId =>
-                    {
-                        Killed.Add(deviceId);
-                        return Task.CompletedTask;
-                    }
-                    : null,
+                RecordStop,
+                transcodeKiller,
                 Messages,
                 NullLogger<PausedTranscodeReaper>.Instance);
+        }
+
+        private Task RecordStop(SessionInfo session, CancellationToken cancellationToken)
+        {
+            if (ReferenceEquals(session, FailStopFor))
+            {
+                throw new InvalidOperationException("session is gone");
+            }
+
+            Stopped.Add(session);
+            return Task.CompletedTask;
         }
 
         internal PausedTranscodeReaper Reaper { get; }

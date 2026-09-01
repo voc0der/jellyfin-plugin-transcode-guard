@@ -275,12 +275,9 @@ internal sealed class PausedTranscodeTracker
         // held alive by this dictionary.
         if (_tracked.Count != stillPaused.Count)
         {
-            foreach (var tracked in _tracked.Keys.ToList())
+            foreach (var stale in _tracked.Keys.Where(tracked => !stillPaused.Contains(tracked)).ToList())
             {
-                if (!stillPaused.Contains(tracked))
-                {
-                    _tracked.Remove(tracked);
-                }
+                _tracked.Remove(stale);
             }
         }
 
