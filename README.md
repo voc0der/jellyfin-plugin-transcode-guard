@@ -65,6 +65,9 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 3. Install **Transcode Guard** from **Catalog**
 4. Restart Jellyfin
 
+> [!NOTE]
+> Full repository of this author's plugins: [voc0der/jellyfin-plugins](https://github.com/voc0der/jellyfin-plugins).
+
 ### Manual
 
 1. Download the latest ZIP from the [Releases page](https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/latest)
