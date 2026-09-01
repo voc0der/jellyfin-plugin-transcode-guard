@@ -38,6 +38,13 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
   <em>Login nags, user exclusions, and the live session monitor</em>
 </p>
 
+<p align="center">
+  <img src="docs/images/transcode-nag-gpu-guard.png" alt="Transcode Nag GPU resource guard settings in the Jellyfin dashboard" width="880" />
+</p>
+<p align="center">
+  <em>GPU resource guard settings</em>
+</p>
+
 ## What It Does
 
 - Sends a playback nag when Jellyfin reports selected `TranscodeReasons`.
