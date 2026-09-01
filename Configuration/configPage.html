@@ -5,7 +5,7 @@
     <title>Transcode Nag</title>
 </head>
 <body>
-    <div id="TranscodeNagConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+    <div id="TranscodeNagConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
         <div data-role="content">
             <div class="content-primary">
                 <form id="TranscodeNagConfigForm">
@@ -103,7 +103,7 @@
 
                     <div class="selectContainer">
                         <label class="inputLabel inputLabelUnfocused" for="selectLoginNagTimeWindow">Login Nag Time Window:</label>
-                        <select id="selectLoginNagTimeWindow" name="selectLoginNagTimeWindow" class="emby-select">
+                        <select is="emby-select" id="selectLoginNagTimeWindow" name="selectLoginNagTimeWindow" class="emby-select-withcolor emby-select">
                             <option value="Week">Week</option>
                             <option value="Month">Month</option>
                         </select>
