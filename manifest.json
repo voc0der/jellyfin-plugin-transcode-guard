@@ -2,7 +2,7 @@
   {
     "category": "General",
     "guid": "fdcf27a6-bd64-42e3-9f57-41880552bf83",
-    "name": "Transcode Guard",
+    "name": "Transcode Nag",
     "description": "Intelligently nags users when they transcode due to unsupported formats/codecs, while allowing bitrate-based transcoding without harassment.",
     "owner": "voc0der",
     "overview": "Smart transcoding monitor that only nags for format/codec incompatibility",
