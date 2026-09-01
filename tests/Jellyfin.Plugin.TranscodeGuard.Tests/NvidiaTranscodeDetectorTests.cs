@@ -1,6 +1,6 @@
-using Jellyfin.Plugin.TranscodeNag.Gpu;
+using Jellyfin.Plugin.TranscodeGuard.Gpu;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 public class NvidiaTranscodeDetectorTests
 {

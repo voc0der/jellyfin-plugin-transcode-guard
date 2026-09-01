@@ -1,7 +1,7 @@
 using System.Xml.Serialization;
-using Jellyfin.Plugin.TranscodeNag.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 public class PluginConfigurationCompatibilityTests
 {

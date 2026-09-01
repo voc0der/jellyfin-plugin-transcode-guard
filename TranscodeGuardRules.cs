@@ -1,14 +1,14 @@
 using System;
 using System.Linq;
 using Jellyfin.Data.Enums;
-using Jellyfin.Plugin.TranscodeNag.Configuration;
-using Jellyfin.Plugin.TranscodeNag.Models;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Models;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Session;
 
-namespace Jellyfin.Plugin.TranscodeNag;
+namespace Jellyfin.Plugin.TranscodeGuard;
 
-internal static class TranscodeNagRules
+internal static class TranscodeGuardRules
 {
     internal static TranscodeReason BuildConfiguredNagReasonMask(string[]? configuredReasonNames)
     {

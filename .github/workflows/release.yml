@@ -9,6 +9,13 @@ on:
 permissions:
   contents: write
 
+env:
+  # The Transcode Guard plugin identity. manifest.json also carries the retired
+  # Transcode Nag entry under its own GUID, so every write must say which one it
+  # means. Changing this value creates a new plugin as far as Jellyfin is
+  # concerned; it is not a cosmetic string.
+  PLUGIN_GUID: 2ce6b237-2610-4dfd-a34b-3f4c2ac64a88
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
@@ -32,8 +39,8 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v7
       with:
-        name: Jellyfin.Plugin.TranscodeNag
-        path: bin/Release/net8.0/Jellyfin.Plugin.TranscodeNag.dll
+        name: Jellyfin.Plugin.TranscodeGuard
+        path: bin/Release/net8.0/Jellyfin.Plugin.TranscodeGuard.dll
 
     - name: Generate version and changelog
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -100,12 +107,12 @@ jobs:
         VERSION=${{ steps.version.outputs.version }}
         # Strip 'v' prefix for folder name (Jellyfin expects folder without 'v')
         VERSION_NO_V="${VERSION#v}"
-        FOLDER_NAME="Transcode_Nag_${VERSION_NO_V}"
-        ZIP_NAME="Transcode_Nag_${VERSION}.zip"
+        FOLDER_NAME="Transcode_Guard_${VERSION_NO_V}"
+        ZIP_NAME="Transcode_Guard_${VERSION}.zip"
 
         # Create versioned folder structure
         mkdir -p "release/${FOLDER_NAME}"
-        cp bin/Release/net8.0/Jellyfin.Plugin.TranscodeNag.dll "release/${FOLDER_NAME}/"
+        cp bin/Release/net8.0/Jellyfin.Plugin.TranscodeGuard.dll "release/${FOLDER_NAME}/"
 
         # Create ZIP
         cd release
@@ -121,26 +128,42 @@ jobs:
         VERSION=${{ steps.version.outputs.version }}
         # Strip 'v' prefix for manifest.json version field (Jellyfin requires semantic version without 'v')
         MANIFEST_VERSION="${VERSION#v}"
-        ZIP_NAME="Transcode_Nag_${VERSION}.zip"
+        ZIP_NAME="Transcode_Guard_${VERSION}.zip"
         CHECKSUM=$(md5sum "${ZIP_NAME}" | awk '{print $1}')
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         REPO="${{ github.repository }}"
         IMAGE_URL="https://raw.githubusercontent.com/${REPO}/main/icon.png"
 
+        # Select the entry by GUID rather than by position. manifest.json also
+        # carries the retired Transcode Nag entry, which must never be rewritten:
+        # it is frozen at its final version so existing installs are never
+        # offered an update.
         jq --arg version "$MANIFEST_VERSION" \
            --rawfile changelog CHANGELOG.md \
            --arg checksum "$CHECKSUM" \
            --arg timestamp "$TIMESTAMP" \
            --arg url "https://github.com/${REPO}/releases/download/${VERSION}/${ZIP_NAME}" \
            --arg imageUrl "$IMAGE_URL" \
-           '.[0].imageUrl = $imageUrl | .[0].versions = [{
-             "version": $version,
-             "changelog": $changelog,
-             "targetAbi": "10.9.0.0",
-             "sourceUrl": $url,
-             "checksum": $checksum,
-             "timestamp": $timestamp
-           }] + .[0].versions' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+           --arg guid "$PLUGIN_GUID" \
+           'map(if .guid == $guid then
+              .imageUrl = $imageUrl
+              | .versions = [{
+                  "version": $version,
+                  "changelog": $changelog,
+                  "targetAbi": "10.9.0.0",
+                  "sourceUrl": $url,
+                  "checksum": $checksum,
+                  "timestamp": $timestamp
+                }] + .versions
+            else . end)' manifest.json > manifest.tmp
+
+        if ! jq -e --arg guid "$PLUGIN_GUID" \
+             'map(select(.guid == $guid)) | length == 1' manifest.tmp > /dev/null; then
+          echo "manifest.json does not contain exactly one entry for $PLUGIN_GUID" >&2
+          exit 1
+        fi
+
+        mv manifest.tmp manifest.json
 
     - name: Commit updated manifest
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -161,7 +184,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         VERSION=${{ steps.version.outputs.version }}
-        ZIP_NAME="Transcode_Nag_${VERSION}.zip"
+        ZIP_NAME="Transcode_Guard_${VERSION}.zip"
 
         gh release create "$VERSION" \
           --title "Release $VERSION" \

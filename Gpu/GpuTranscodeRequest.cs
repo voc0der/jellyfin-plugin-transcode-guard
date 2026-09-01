@@ -1,6 +1,6 @@
 using System;
 
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// Everything the guard needs about a transcode Jellyfin is about to launch, lifted out of

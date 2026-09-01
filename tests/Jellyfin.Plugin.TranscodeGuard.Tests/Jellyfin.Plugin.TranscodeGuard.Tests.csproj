@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Jellyfin.Plugin.TranscodeNag.csproj" />
+    <ProjectReference Include="..\..\Jellyfin.Plugin.TranscodeGuard.csproj" />
   </ItemGroup>
 
 </Project>

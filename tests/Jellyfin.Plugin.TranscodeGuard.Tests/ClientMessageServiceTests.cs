@@ -1,9 +1,9 @@
-using Jellyfin.Plugin.TranscodeNag.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Messaging;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Jellyfin.Plugin.TranscodeNag.Tests;
+namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 public class ClientMessageServiceTests
 {

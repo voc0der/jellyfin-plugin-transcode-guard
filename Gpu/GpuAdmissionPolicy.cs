@@ -1,7 +1,7 @@
 using System;
-using Jellyfin.Plugin.TranscodeNag.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
 
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// Why a transcode was allowed, or that it was refused.

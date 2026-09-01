@@ -1,15 +1,15 @@
 using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using Jellyfin.Plugin.TranscodeNag.Gpu;
-using Jellyfin.Plugin.TranscodeNag.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Gpu;
+using Jellyfin.Plugin.TranscodeGuard.Messaging;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.TranscodeNag;
+namespace Jellyfin.Plugin.TranscodeGuard;
 
 public class PluginServiceRegistrator : IPluginServiceRegistrator
 {

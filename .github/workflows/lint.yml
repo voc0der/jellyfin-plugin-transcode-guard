@@ -19,10 +19,10 @@ jobs:
         dotnet-version: 8.0.x
 
     - name: Restore dependencies
-      run: dotnet restore tests/Jellyfin.Plugin.TranscodeNag.Tests/Jellyfin.Plugin.TranscodeNag.Tests.csproj
+      run: dotnet restore tests/Jellyfin.Plugin.TranscodeGuard.Tests/Jellyfin.Plugin.TranscodeGuard.Tests.csproj
 
     - name: Run unit tests
-      run: dotnet test tests/Jellyfin.Plugin.TranscodeNag.Tests/Jellyfin.Plugin.TranscodeNag.Tests.csproj --configuration Release --no-restore
+      run: dotnet test tests/Jellyfin.Plugin.TranscodeGuard.Tests/Jellyfin.Plugin.TranscodeGuard.Tests.csproj --configuration Release --no-restore
 
     - name: Check whitespace formatting
       run: dotnet format whitespace --verify-no-changes --verbosity minimal
@@ -31,7 +31,7 @@ jobs:
       run: dotnet format style --verify-no-changes --severity warn --verbosity minimal
 
     - name: Check test whitespace formatting
-      run: dotnet format tests/Jellyfin.Plugin.TranscodeNag.Tests/Jellyfin.Plugin.TranscodeNag.Tests.csproj whitespace --verify-no-changes --verbosity minimal
+      run: dotnet format tests/Jellyfin.Plugin.TranscodeGuard.Tests/Jellyfin.Plugin.TranscodeGuard.Tests.csproj whitespace --verify-no-changes --verbosity minimal
 
     - name: Check test C# style formatting
-      run: dotnet format tests/Jellyfin.Plugin.TranscodeNag.Tests/Jellyfin.Plugin.TranscodeNag.Tests.csproj style --verify-no-changes --severity warn --verbosity minimal
+      run: dotnet format tests/Jellyfin.Plugin.TranscodeGuard.Tests/Jellyfin.Plugin.TranscodeGuard.Tests.csproj style --verify-no-changes --severity warn --verbosity minimal

@@ -1,4 +1,4 @@
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// A conservative, quarter-GiB budget for the video memory one FFmpeg job will allocate.

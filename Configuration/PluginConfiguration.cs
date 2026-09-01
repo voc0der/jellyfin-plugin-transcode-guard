@@ -2,7 +2,7 @@ using System;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Session;
 
-namespace Jellyfin.Plugin.TranscodeNag.Configuration;
+namespace Jellyfin.Plugin.TranscodeGuard.Configuration;
 
 public class PluginConfiguration : BasePluginConfiguration
 {

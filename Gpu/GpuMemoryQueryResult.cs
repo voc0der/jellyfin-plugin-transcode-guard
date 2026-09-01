@@ -1,4 +1,4 @@
-namespace Jellyfin.Plugin.TranscodeNag.Gpu;
+namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
 /// Outcome of a single free-VRAM lookup.

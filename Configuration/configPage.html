@@ -5,10 +5,10 @@
     <title>Transcode Guard</title>
 </head>
 <body>
-    <div id="TranscodeNagConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+    <div id="TranscodeGuardConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
         <div data-role="content">
             <div class="content-primary">
-                <form id="TranscodeNagConfigForm">
+                <form id="TranscodeGuardConfigForm">
                     <div class="selectContainer">
                         <label class="inputLabel inputLabelUnfocused" for="txtNagMessage">Nag Message:</label>
                         <textarea id="txtNagMessage" name="txtNagMessage" rows="4" class="emby-input"></textarea>
@@ -333,7 +333,7 @@
         </div>
 
         <script type="text/javascript">
-            var TranscodeNagConfig = {
+            var TranscodeGuardConfig = {
                 pluginId: "fdcf27a6-bd64-42e3-9f57-41880552bf83"
             };
 
@@ -926,7 +926,7 @@
 
                     var configPromise = preloadedConfig
                         ? Promise.resolve(preloadedConfig)
-                        : ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId);
+                        : ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId);
 
                     return configPromise.then(function(config) {
                         LiveSessionMonitor.setConfig(config);
@@ -953,7 +953,7 @@
                 }
             };
 
-            document.getElementById('TranscodeNagConfigPage').addEventListener('pageshow', function () {
+            document.getElementById('TranscodeGuardConfigPage').addEventListener('pageshow', function () {
                 Dashboard.showLoadingMsg();
                 ReasonSelector.init();
                 LiveSessionMonitor.init();
@@ -961,7 +961,7 @@
                 MotdUserExclusionManager.init();
                 MotdSection.init();
                 GpuGuardSection.init();
-                ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function (config) {
+                ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function (config) {
                     document.getElementById('txtNagMessage').value = config.NagMessage || '';
                     document.getElementById('chkUseStickyPlaybackMessages').checked = config.UseStickyPlaybackMessages === true;
                     document.getElementById('txtDelaySeconds').value = config.DelaySeconds || 5;
@@ -996,11 +996,11 @@
                 });
             });
 
-            document.getElementById('TranscodeNagConfigForm').addEventListener('submit', function (e) {
+            document.getElementById('TranscodeGuardConfigForm').addEventListener('submit', function (e) {
                 e.preventDefault();
                 Dashboard.showLoadingMsg();
 
-                ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function (config) {
+                ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function (config) {
                     config.NagMessage = document.getElementById('txtNagMessage').value;
                     config.UseStickyPlaybackMessages = document.getElementById('chkUseStickyPlaybackMessages').checked;
                     config.DelaySeconds = parseInt(document.getElementById('txtDelaySeconds').value);
@@ -1029,7 +1029,7 @@
                     config.AlertTranscodeReasons = ReasonSelector.getSelectedReasonNames();
                     config.ReasonMessageOverrides = ReasonSelector.getReasonMessageOverrides();
 
-                    ApiClient.updatePluginConfiguration(TranscodeNagConfig.pluginId, config).then(function (result) {
+                    ApiClient.updatePluginConfiguration(TranscodeGuardConfig.pluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
                     });
                 });
@@ -1065,7 +1065,7 @@
                         Dashboard.showLoadingMsg();
 
                         // Fetch current exclusion list from config
-                        ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function(config) {
+                        ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function(config) {
                             manager.excludedUserIds = config[options.configProperty] || [];
 
                             // Fetch all users from Jellyfin
@@ -1146,10 +1146,10 @@
                         });
 
                         // Update configuration
-                        ApiClient.getPluginConfiguration(TranscodeNagConfig.pluginId).then(function(config) {
+                        ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function(config) {
                             config[options.configProperty] = newExcludedUserIds;
 
-                            return ApiClient.updatePluginConfiguration(TranscodeNagConfig.pluginId, config);
+                            return ApiClient.updatePluginConfiguration(TranscodeGuardConfig.pluginId, config);
                         }).then(function() {
                             manager.excludedUserIds = newExcludedUserIds;
                             manager.closeModal();
@@ -1198,7 +1198,7 @@
                 excludedMessageSuffix: ' user(s) excluded from the MOTD.'
             });
 
-            document.getElementById('TranscodeNagConfigPage').addEventListener('pagehide', function() {
+            document.getElementById('TranscodeGuardConfigPage').addEventListener('pagehide', function() {
                 LiveSessionMonitor.stopRefreshTimer();
             });
         </script>
