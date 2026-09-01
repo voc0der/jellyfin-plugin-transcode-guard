@@ -259,6 +259,76 @@
                         </div>
                     </div>
 
+                    <h2>Paused Transcode Reaper</h2>
+                    <div class="fieldDescription" style="margin-bottom: 12px;">
+                        Jellyfin never evicts a paused transcode on its own: a paused client keeps checking in,
+                        so its FFmpeg process keeps holding VRAM, an encoder session, and its output files for
+                        as long as someone leaves the pause screen up. This stops a transcode that has been
+                        paused for too long. The client is asked to stop first, which leaves a resume point
+                        behind; a client that ignores that has its FFmpeg job ended server-side. Neither path
+                        signs the user out or removes their device.
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="chkEnablePausedTranscodeReaper" name="chkEnablePausedTranscodeReaper" />
+                            <span>Stop transcodes left paused</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. Applies to every paused transcode, including Live TV and CPU transcodes. Direct play is never touched, because it holds nothing to reclaim.</div>
+                    </div>
+
+                    <div id="pausedReaperOptions" style="display: none;">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeTimeoutMinutes">Stop after paused for (minutes):</label>
+                            <input type="number" id="txtPausedTranscodeTimeoutMinutes" name="txtPausedTranscodeTimeoutMinutes" min="1" max="1440" class="emby-input" />
+                            <div class="fieldDescription">How long a transcode may sit paused before it is stopped. The clock restarts whenever playback resumes or the viewer seeks.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningMinutes">Warn this many minutes first:</label>
+                            <input type="number" id="txtPausedTranscodeWarningMinutes" name="txtPausedTranscodeWarningMinutes" min="0" max="60" class="emby-input" />
+                            <div class="fieldDescription">Sends one popup this long before the stop, giving the viewer a chance to press play. Set to 0 to stop without warning.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningHeader">Warning Title:</label>
+                            <input type="text" id="txtPausedTranscodeWarningHeader" name="txtPausedTranscodeWarningHeader" class="emby-input" />
+                            <div class="fieldDescription">Title of the popup shown before the stop.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningMessage">Warning Message:</label>
+                            <textarea id="txtPausedTranscodeWarningMessage" name="txtPausedTranscodeWarningMessage" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Supports <code>{{minutes}}</code>, replaced with the minutes left before the stop.</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyPausedTranscodeMessages" name="chkUseStickyPausedTranscodeMessages" />
+                                <span>Sticky Messages</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Sends each warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkReapPausedDirectPlay" name="chkReapPausedDirectPlay" />
+                                <span>Also stop paused direct play</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. Direct play holds an open file handle and a stream slot rather than VRAM or an encoder session, so this frees far less than stopping a transcode. It is also stop-only: a direct play client that ignores the stop cannot be ended server-side, because there is no FFmpeg process to end.</div>
+                        </div>
+
+                        <div class="fieldDescription" style="margin-bottom: 10px;">
+                            Exclude specific users from the reaper. Their paused playback is left running. This list is separate from every other exclusion list.
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <button is="emby-button" type="button" id="btnManagePausedTranscodeExclusions" class="raised block emby-button">
+                                <span>Manage Excluded Users (Paused Transcodes)</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block">
                             <span>Save</span>
@@ -325,6 +395,38 @@
                             <span>Save</span>
                         </button>
                         <button is="emby-button" type="button" id="btnCancelMotdExclusions" class="raised">
+                            <span>Cancel</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paused Transcode User Exclusion Modal -->
+            <div id="pausedTranscodeUserExclusionModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; overflow-y: auto;">
+                <div style="background: var(--theme-background-content); margin: 50px auto; max-width: 600px; padding: 20px; border-radius: 4px;">
+                    <h2>Select Users to Exclude from the Paused Transcode Reaper</h2>
+                    <div class="fieldDescription" style="margin-bottom: 15px;">
+                        By default, every user's paused transcodes are stopped. Uncheck users to leave their paused transcodes running indefinitely.
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+                        <button is="emby-button" type="button" id="btnPausedTranscodeUsersSelectAll" class="raised">
+                            <span>Select All</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnPausedTranscodeUsersResetDefaults" class="raised">
+                            <span>Reset Defaults</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnPausedTranscodeUsersClearAll" class="raised">
+                            <span>Clear All</span>
+                        </button>
+                    </div>
+                    <div id="pausedTranscodeUserExclusionList" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+                        <!-- User checkboxes will be populated here -->
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button is="emby-button" type="button" id="btnSavePausedTranscodeExclusions" class="raised button-submit">
+                            <span>Save</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnCancelPausedTranscodeExclusions" class="raised">
                             <span>Cancel</span>
                         </button>
                     </div>
@@ -653,6 +755,36 @@
                 }
             };
 
+            // Keeps the paused transcode reaper block collapsed unless the feature is switched on.
+            var PausedReaperSection = {
+                initialized: false,
+
+                init: function() {
+                    if (this.initialized) {
+                        return;
+                    }
+
+                    document.getElementById('chkEnablePausedTranscodeReaper').addEventListener('change', this.updateVisibility);
+                    this.initialized = true;
+                },
+
+                updateVisibility: function() {
+                    var enabled = document.getElementById('chkEnablePausedTranscodeReaper').checked;
+                    document.getElementById('pausedReaperOptions').style.display = enabled ? 'block' : 'none';
+                },
+
+                // A blank or non-numeric field must not be saved as NaN.
+                readNumber: function(elementId, fallback) {
+                    var parsed = parseInt(document.getElementById(elementId).value, 10);
+                    return isNaN(parsed) || parsed < 0 ? fallback : parsed;
+                },
+
+                // A saved 0 is a real value here, so it must not be treated as "unset".
+                numberOrDefault: function(value, fallback) {
+                    return typeof value === 'number' && isFinite(value) && value >= 0 ? value : fallback;
+                }
+            };
+
             var LiveSessionMonitor = {
                 initialized: false,
                 refreshTimer: null,
@@ -961,6 +1093,8 @@
                 MotdUserExclusionManager.init();
                 MotdSection.init();
                 GpuGuardSection.init();
+                PausedTranscodeUserExclusionManager.init();
+                PausedReaperSection.init();
                 ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function (config) {
                     document.getElementById('txtNagMessage').value = config.NagMessage || '';
                     document.getElementById('chkUseStickyPlaybackMessages').checked = config.UseStickyPlaybackMessages === true;
@@ -987,8 +1121,16 @@
                     document.getElementById('txtGpuGuardDeniedHeader').value = config.GpuGuardDeniedHeader || '';
                     document.getElementById('txtGpuGuardDeniedMessage').value = config.GpuGuardDeniedMessage || '';
                     document.getElementById('chkUseStickyGpuGuardMessages').checked = config.UseStickyGpuGuardMessages === true;
+                    document.getElementById('chkEnablePausedTranscodeReaper').checked = config.EnablePausedTranscodeReaper === true;
+                    document.getElementById('txtPausedTranscodeTimeoutMinutes').value = PausedReaperSection.numberOrDefault(config.PausedTranscodeTimeoutMinutes, 25);
+                    document.getElementById('txtPausedTranscodeWarningMinutes').value = PausedReaperSection.numberOrDefault(config.PausedTranscodeWarningMinutes, 2);
+                    document.getElementById('txtPausedTranscodeWarningHeader').value = config.PausedTranscodeWarningHeader || '';
+                    document.getElementById('txtPausedTranscodeWarningMessage').value = config.PausedTranscodeWarningMessage || '';
+                    document.getElementById('chkUseStickyPausedTranscodeMessages').checked = config.UseStickyPausedTranscodeMessages === true;
+                    document.getElementById('chkReapPausedDirectPlay').checked = config.ReapPausedDirectPlay === true;
                     MotdSection.updateVisibility();
                     GpuGuardSection.updateVisibility();
+                    PausedReaperSection.updateVisibility();
                     ReasonSelector.render(config.AlertTranscodeReasons, config.ReasonMessageOverrides);
                     LiveSessionMonitor.refresh(false, config);
                     LiveSessionMonitor.startRefreshTimer();
@@ -1026,6 +1168,13 @@
                     config.GpuGuardDeniedHeader = document.getElementById('txtGpuGuardDeniedHeader').value;
                     config.GpuGuardDeniedMessage = document.getElementById('txtGpuGuardDeniedMessage').value;
                     config.UseStickyGpuGuardMessages = document.getElementById('chkUseStickyGpuGuardMessages').checked;
+                    config.EnablePausedTranscodeReaper = document.getElementById('chkEnablePausedTranscodeReaper').checked;
+                    config.PausedTranscodeTimeoutMinutes = PausedReaperSection.readNumber('txtPausedTranscodeTimeoutMinutes', 25);
+                    config.PausedTranscodeWarningMinutes = PausedReaperSection.readNumber('txtPausedTranscodeWarningMinutes', 2);
+                    config.PausedTranscodeWarningHeader = document.getElementById('txtPausedTranscodeWarningHeader').value;
+                    config.PausedTranscodeWarningMessage = document.getElementById('txtPausedTranscodeWarningMessage').value;
+                    config.UseStickyPausedTranscodeMessages = document.getElementById('chkUseStickyPausedTranscodeMessages').checked;
+                    config.ReapPausedDirectPlay = document.getElementById('chkReapPausedDirectPlay').checked;
                     config.AlertTranscodeReasons = ReasonSelector.getSelectedReasonNames();
                     config.ReasonMessageOverrides = ReasonSelector.getReasonMessageOverrides();
 
@@ -1196,6 +1345,20 @@
                 configProperty: 'MotdExcludedUserIds',
                 allIncludedMessage: 'All users will now receive the MOTD.',
                 excludedMessageSuffix: ' user(s) excluded from the MOTD.'
+            });
+
+            var PausedTranscodeUserExclusionManager = createUserExclusionManager({
+                modalId: 'pausedTranscodeUserExclusionModal',
+                listId: 'pausedTranscodeUserExclusionList',
+                openButtonId: 'btnManagePausedTranscodeExclusions',
+                saveButtonId: 'btnSavePausedTranscodeExclusions',
+                cancelButtonId: 'btnCancelPausedTranscodeExclusions',
+                selectAllButtonId: 'btnPausedTranscodeUsersSelectAll',
+                resetButtonId: 'btnPausedTranscodeUsersResetDefaults',
+                clearAllButtonId: 'btnPausedTranscodeUsersClearAll',
+                configProperty: 'PausedTranscodeExcludedUserIds',
+                allIncludedMessage: 'Paused transcodes will now be stopped for all users.',
+                excludedMessageSuffix: ' user(s) excluded from the paused transcode reaper.'
             });
 
             document.getElementById('TranscodeGuardConfigPage').addEventListener('pagehide', function() {

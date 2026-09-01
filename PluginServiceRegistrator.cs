@@ -3,6 +3,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Jellyfin.Plugin.TranscodeGuard.Gpu;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Sessions;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Plugins;
@@ -25,6 +26,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IGpuMemoryProvider, NvidiaSmiGpuMemoryProvider>();
         serviceCollection.AddSingleton<GpuResourceGuard>();
         serviceCollection.AddHostedService<PlaybackMonitor>();
+        serviceCollection.AddHostedService<PausedTranscodeReaper>();
 
         TryDecorateTranscodeManager(serviceCollection);
     }
