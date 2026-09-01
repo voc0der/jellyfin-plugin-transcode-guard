@@ -16,7 +16,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         Instance = this;
     }
 
-    public override string Name => "Transcode Nag";
+    public override string Name => "Transcode Guard";
 
     public override Guid Id => Guid.Parse("fdcf27a6-bd64-42e3-9f57-41880552bf83");
 

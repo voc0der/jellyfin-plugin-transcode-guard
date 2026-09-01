@@ -296,7 +296,7 @@ public sealed class GpuResourceGuard
         var config = _configurationAccessor();
         if (config == null)
         {
-            return "Transcode Nag refused this hardware transcode: insufficient free GPU memory.";
+            return "Transcode Guard refused this hardware transcode: insufficient free GPU memory.";
         }
 
         var estimate = GpuVramEstimator.Estimate(request);
@@ -304,7 +304,7 @@ public sealed class GpuResourceGuard
 
         return string.Format(
             CultureInfo.InvariantCulture,
-            "Transcode Nag refused this hardware transcode: its conservative {1} MiB VRAM budget does not fit in the memory currently free on GPU {0}.",
+            "Transcode Guard refused this hardware transcode: its conservative {1} MiB VRAM budget does not fit in the memory currently free on GPU {0}.",
             selectedGpuIndex ?? config.GpuIndex,
             estimate.BudgetMiB);
     }

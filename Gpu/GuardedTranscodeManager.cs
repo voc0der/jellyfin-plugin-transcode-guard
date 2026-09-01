@@ -95,7 +95,7 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
                 // The denial is already final. Even configuration/log-message construction must
                 // not change Jellyfin's clean 403 into a noisy 500 or let FFmpeg launch.
                 BestEffort(() => _logger.LogError(ex, "Failed to build the GPU resource guard refusal reason"));
-                refusalReason = "Transcode Nag refused this hardware transcode: insufficient free GPU memory.";
+                refusalReason = "Transcode Guard refused this hardware transcode: insufficient free GPU memory.";
             }
 
             throw new SecurityException(refusalReason);
