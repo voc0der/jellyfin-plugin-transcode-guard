@@ -9,14 +9,6 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
     "versions": [
       {
-        "version": "1.0.1.42",
-        "changelog": "## What's Changed\n\n- fix: keep the manifest name as the install path, rebrand only the display name (89baf3f)\n- fix: withdraw 1.0.1.41 from the manifest [skip ci] (cff4536)\n- docs: link back to the full plugin repository [skip ci] (05574c8)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.41...v1.0.1.42\n",
-        "targetAbi": "10.9.0.0",
-        "sourceUrl": "https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/download/v1.0.1.42/Transcode_Nag_v1.0.1.42.zip",
-        "checksum": "cf5d06ca667e482ac7d7cfd60ab5166b",
-        "timestamp": "2026-09-01T18:47:25Z"
-      },
-      {
         "version": "1.0.1.40",
         "changelog": "## What's Changed\n\n- fix(config): render the login nag time window select in the dark theme (608cb5c)\n- chore(deps): Bump github/codeql-action from 4.37.8 to 4.37.9 (bf61fe3)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.39...v1.0.1.40\n",
         "targetAbi": "10.9.0.0",
