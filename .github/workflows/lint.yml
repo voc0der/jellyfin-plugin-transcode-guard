@@ -13,6 +13,37 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
+    - name: Plugin identity is consistent
+      # configPage.html hardcodes the GUID for its ApiClient calls, so it can drift
+      # from Plugin.cs silently: the plugin loads fine and only the settings page
+      # breaks, with a 404 and a spinner that never resolves. 1.0.1.43 shipped
+      # exactly that. Derive the GUID from Plugin.cs and require the page and the
+      # manifest to agree with it.
+      run: |
+        set -euo pipefail
+
+        guid=$(grep -oP 'Guid\.Parse\("\K[0-9a-f-]{36}' Plugin.cs)
+        echo "Plugin.cs GUID: $guid"
+
+        page=$(grep -oP 'pluginId:\s*"\K[0-9a-f-]{36}' Configuration/configPage.html)
+        if [ "$page" != "$guid" ]; then
+          echo "::error file=Configuration/configPage.html::pluginId $page does not match Plugin.cs $guid" >&2
+          exit 1
+        fi
+
+        if ! jq -e --arg guid "$guid" 'map(select(.guid == $guid)) | length == 1' manifest.json > /dev/null; then
+          echo "::error file=manifest.json::no single entry for $guid" >&2
+          exit 1
+        fi
+
+        env_guid=$(grep -oP 'PLUGIN_GUID:\s*\K[0-9a-f-]{36}' .github/workflows/release.yml)
+        if [ "$env_guid" != "$guid" ]; then
+          echo "::error file=.github/workflows/release.yml::PLUGIN_GUID $env_guid does not match Plugin.cs $guid" >&2
+          exit 1
+        fi
+
+        echo "Plugin.cs, configPage.html, manifest.json and release.yml all agree."
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v6
       with:
