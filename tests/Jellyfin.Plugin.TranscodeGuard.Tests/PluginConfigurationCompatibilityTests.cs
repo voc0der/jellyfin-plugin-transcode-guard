@@ -81,6 +81,7 @@ public class PluginConfigurationCompatibilityTests
         Assert.Equal(25, config.PausedTranscodeTimeoutMinutes);
         Assert.Equal(2, config.PausedTranscodeWarningMinutes);
         Assert.False(config.UseStickyPausedTranscodeMessages);
+        Assert.False(config.ReapPausedDirectPlay);
         Assert.Empty(config.PausedTranscodeExcludedUserIds);
         Assert.Contains("{{minutes}}", config.PausedTranscodeWarningMessage, StringComparison.Ordinal);
     }
@@ -97,6 +98,7 @@ public class PluginConfigurationCompatibilityTests
             PausedTranscodeWarningHeader = "Wake up",
             PausedTranscodeWarningMessage = "Stopping in {{minutes}}.",
             UseStickyPausedTranscodeMessages = true,
+            ReapPausedDirectPlay = true,
             PausedTranscodeExcludedUserIds = new[] { "abc" }
         };
 
@@ -112,6 +114,7 @@ public class PluginConfigurationCompatibilityTests
         Assert.Equal("Wake up", roundTripped.PausedTranscodeWarningHeader);
         Assert.Equal("Stopping in {{minutes}}.", roundTripped.PausedTranscodeWarningMessage);
         Assert.True(roundTripped.UseStickyPausedTranscodeMessages);
+        Assert.True(roundTripped.ReapPausedDirectPlay);
         Assert.Equal(new[] { "abc" }, roundTripped.PausedTranscodeExcludedUserIds);
     }
 
@@ -132,6 +135,7 @@ public class PluginConfigurationCompatibilityTests
 
         // An upgrade must never start ending anyone's playback on its own.
         Assert.False(config.EnablePausedTranscodeReaper);
+        Assert.False(config.ReapPausedDirectPlay);
         Assert.Equal(7, config.LoginNagThreshold);
     }
 }

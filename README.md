@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/github/v/release/voc0der/jellyfin-plugin-transcode-guard?label=stable%20release" alt="Stable release version" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/tree/main/tests">
-    <img src="https://img.shields.io/badge/coverage-65%25-yellowgreen" alt="Code coverage percentage" />
+    <img src="https://img.shields.io/badge/coverage-69%25-yellowgreen" alt="Code coverage percentage" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/issues">
     <img src="https://img.shields.io/github/issues/voc0der/jellyfin-plugin-transcode-guard?color=DAA520" alt="Open issues" />
@@ -98,7 +98,7 @@ Open **Dashboard** → **Plugins** → **Transcode Guard**.
 - If you want login nags, enable them and set the threshold, time window, and message. The login message supports `{{transcodes}}` and `{{timewindow}}`.
 - Use **Manage Excluded Users** to opt users out of both playback and login nags.
 - Use the built-in live session monitor to see which active sessions currently match your rules.
-- Enable the **Paused Transcode Reaper** (off by default) to stop transcodes left paused past a timeout, 25 minutes by default. The client is asked to stop first, which leaves the resume point the last progress report saved; a client that ignores that has its FFmpeg job ended server-side. Neither path signs the user out or removes their device. It applies to every paused transcode, including Live TV and CPU transcodes, and never touches direct play. Optionally warn the viewer first with a popup supporting `{{minutes}}`, and use **Manage Excluded Users (Paused Transcodes)** to leave chosen users' paused streams alone.
+- Enable the **Paused Transcode Reaper** (off by default) to stop transcodes left paused past a timeout, 25 minutes by default. The client is asked to stop first, which leaves the resume point the last progress report saved; a client that ignores that has its FFmpeg job ended server-side. Neither path signs the user out or removes their device. It applies to every paused transcode, including Live TV and CPU transcodes, and never touches direct play. Optionally warn the viewer first with a popup supporting `{{minutes}}`, and use **Manage Excluded Users (Paused Transcodes)** to leave chosen users' paused streams alone. **Also stop paused direct play** (off by default) widens it to every paused session; direct play is stop-only, since there is no FFmpeg process to end if the client ignores the stop.
 - Enable **Message of the Day** (off by default) to send an announcement to everyone at login. Its options stay collapsed until the toggle is on, and it has its own message, its own **Manage Excluded Users (MOTD)** list, and its own client include/exclude filters, all independent of the nag settings.
 - Enable **GPU resource guard** (off by default) to set the fallback GPU index, nvidia-smi timeout and path, and the message a refused client sees. The guard reads current free memory immediately before launch and automatically budgets each job from its source, CUDA filters, and output instead of using a fixed free-VRAM threshold. An explicit GPU selected by FFmpeg overrides the fallback index. `nvidia-smi` must be runnable by the Jellyfin server process.
 

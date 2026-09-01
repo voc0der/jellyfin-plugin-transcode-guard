@@ -126,19 +126,38 @@ internal sealed class PausedTranscodeTracker
     }
 
     /// <summary>
-    /// Identifies a session that is both paused and holding an FFmpeg process.
+    /// Identifies a session holding an FFmpeg process, which is the only thing the server can end
+    /// on its own.
     /// </summary>
     /// <remarks>
-    /// Direct play costs nothing to leave paused and is never touched. A direct stream (remux)
-    /// still owns an FFmpeg process and its output files, so it counts. Live TV counts too: the
-    /// nag settings' Live TV exclusion is about who gets messaged, not about which processes are
-    /// allowed to sit idle.
+    /// A direct stream (remux) counts: it still owns an FFmpeg process and its output files.
     /// </remarks>
     /// <param name="session">The session to classify.</param>
-    /// <returns>True when the session is a paused transcode.</returns>
-    internal static bool IsPausedTranscode(SessionInfo session)
+    /// <returns>True when an FFmpeg job belongs to this session.</returns>
+    internal static bool HasTranscodeJob(SessionInfo session)
     {
         ArgumentNullException.ThrowIfNull(session);
+
+        return session.TranscodingInfo != null || session.PlayState?.PlayMethod == PlayMethod.Transcode;
+    }
+
+    /// <summary>
+    /// Identifies a paused session the reaper is allowed to act on.
+    /// </summary>
+    /// <remarks>
+    /// Paused transcodes always qualify, Live TV included: the nag settings' Live TV exclusion is
+    /// about who gets messaged, not about which processes may sit idle. Direct play only qualifies
+    /// when the admin opts in, because it holds an open file handle and a stream slot rather than
+    /// VRAM or an encoder session, and there is nothing the server can take back from it if the
+    /// client ignores the stop.
+    /// </remarks>
+    /// <param name="session">The session to classify.</param>
+    /// <param name="config">The plugin configuration.</param>
+    /// <returns>True when the session is paused and in scope.</returns>
+    internal static bool IsReapable(SessionInfo session, PluginConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(config);
 
         var playState = session.PlayState;
         if (playState == null || !playState.IsPaused)
@@ -146,7 +165,14 @@ internal sealed class PausedTranscodeTracker
             return false;
         }
 
-        return session.TranscodingInfo != null || playState.PlayMethod == PlayMethod.Transcode;
+        if (HasTranscodeJob(session))
+        {
+            return true;
+        }
+
+        // NowPlayingItem guards against a session whose paused flag outlived whatever it was
+        // playing; there would be no playback left to stop.
+        return config.ReapPausedDirectPlay && session.NowPlayingItem != null;
     }
 
     /// <summary>
@@ -178,7 +204,7 @@ internal sealed class PausedTranscodeTracker
         foreach (var session in sessions ?? Enumerable.Empty<SessionInfo>())
         {
             if (session?.Id == null
-                || !IsPausedTranscode(session)
+                || !IsReapable(session, config)
                 || TranscodeGuardRules.IsUserExcluded(session.UserId, config.PausedTranscodeExcludedUserIds))
             {
                 continue;
@@ -210,12 +236,19 @@ internal sealed class PausedTranscodeTracker
                     continue;
                 }
 
-                // Still paused and still transcoding after being asked to stop: the client is not
-                // going to cooperate. Forget it afterwards so a job that survives even the kill
-                // waits out another full timeout instead of being hammered every tick.
+                // Still paused after being asked to stop: the client is not going to cooperate.
+                // Forget it afterwards so a job that survives even the kill waits out another full
+                // timeout instead of being hammered every tick.
                 _tracked.Remove(session);
                 stillPaused.Remove(session);
-                verdicts.Add(new PausedTranscodeVerdict(session, PausedTranscodeAction.Kill, pausedFor, 0));
+
+                // Direct play owns no FFmpeg process, so a client that ignores the stop simply
+                // keeps sitting there - the escalation has nothing left to escalate to.
+                if (HasTranscodeJob(session))
+                {
+                    verdicts.Add(new PausedTranscodeVerdict(session, PausedTranscodeAction.Kill, pausedFor, 0));
+                }
+
                 continue;
             }
 

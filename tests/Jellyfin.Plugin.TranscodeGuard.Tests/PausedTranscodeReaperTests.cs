@@ -27,19 +27,79 @@ public class PausedTranscodeTrackerTests
     }
 
     [Fact]
-    public void Evaluate_IgnoresPausedDirectPlay()
+    public void Evaluate_IgnoresPausedDirectPlayByDefault()
     {
         var tracker = new PausedTranscodeTracker();
-        var session = PausedTranscode();
-
-        // Direct play holds no FFmpeg process, so there is nothing to reclaim by ending it.
-        session.TranscodingInfo = null;
-        session.PlayState.PlayMethod = PlayMethod.DirectPlay;
+        var session = PausedDirectPlay();
         var config = EnabledConfig();
 
         tracker.Evaluate(new[] { session }, config, Start);
 
         Assert.Empty(tracker.Evaluate(new[] { session }, config, Start.AddHours(3)));
+        Assert.Equal(0, tracker.TrackedCount);
+    }
+
+    [Fact]
+    public void Evaluate_StopsPausedDirectPlayWhenTheAdminOptsIn()
+    {
+        var tracker = new PausedTranscodeTracker();
+        var session = PausedDirectPlay();
+        var config = EnabledConfig();
+        config.ReapPausedDirectPlay = true;
+        config.PausedTranscodeWarningMinutes = 0;
+
+        tracker.Evaluate(new[] { session }, config, Start);
+        var verdicts = tracker.Evaluate(new[] { session }, config, Start.AddMinutes(25));
+
+        Assert.Equal(PausedTranscodeAction.Stop, Assert.Single(verdicts).Action);
+    }
+
+    [Fact]
+    public void Evaluate_NeverKillsDirectPlayBecauseThereIsNoJobToEnd()
+    {
+        var tracker = new PausedTranscodeTracker();
+        var session = PausedDirectPlay();
+        var config = EnabledConfig();
+        config.ReapPausedDirectPlay = true;
+        config.PausedTranscodeWarningMinutes = 0;
+
+        tracker.Evaluate(new[] { session }, config, Start);
+        Assert.Single(tracker.Evaluate(new[] { session }, config, Start.AddMinutes(25)));
+
+        // The client ignored the stop, but there is no FFmpeg process to take away.
+        Assert.Empty(tracker.Evaluate(new[] { session }, config, Start.AddMinutes(26)));
+    }
+
+    [Fact]
+    public void Evaluate_LeavesDirectPlayAloneWhenNothingIsPlaying()
+    {
+        var tracker = new PausedTranscodeTracker();
+        var session = PausedDirectPlay();
+
+        // A paused flag that outlived its playback is not something to stop.
+        session.NowPlayingItem = null;
+        var config = EnabledConfig();
+        config.ReapPausedDirectPlay = true;
+
+        tracker.Evaluate(new[] { session }, config, Start);
+
+        Assert.Empty(tracker.Evaluate(new[] { session }, config, Start.AddHours(3)));
+    }
+
+    [Fact]
+    public void Evaluate_StillKillsTranscodesWhenDirectPlayIsInScope()
+    {
+        var tracker = new PausedTranscodeTracker();
+        var session = PausedTranscode();
+        var config = EnabledConfig();
+        config.ReapPausedDirectPlay = true;
+        config.PausedTranscodeWarningMinutes = 0;
+
+        tracker.Evaluate(new[] { session }, config, Start);
+        Assert.Single(tracker.Evaluate(new[] { session }, config, Start.AddMinutes(25)));
+
+        var kill = Assert.Single(tracker.Evaluate(new[] { session }, config, Start.AddMinutes(26)));
+        Assert.Equal(PausedTranscodeAction.Kill, kill.Action);
     }
 
     [Fact]
@@ -249,6 +309,15 @@ public class PausedTranscodeTrackerTests
             PausedTranscodeWarningMinutes = 2
         };
 
+    internal static SessionInfo PausedDirectPlay()
+    {
+        var session = PausedTranscode();
+        session.TranscodingInfo = null;
+        session.PlayState.PlayMethod = PlayMethod.DirectPlay;
+
+        return session;
+    }
+
     internal static SessionInfo PausedTranscode()
     {
         var session = TestSessions.Create(
@@ -371,6 +440,21 @@ public class PausedTranscodeReaperTests
         await harness.Reaper.RunOnceAsync(config, Start.AddMinutes(25));
 
         Assert.Same(healthy, Assert.Single(harness.Stopped));
+    }
+
+    [Fact]
+    public async Task HostedServiceLifecycleIsSafeToRepeat()
+    {
+        var harness = new Harness(PausedTranscodeTrackerTests.PausedTranscode());
+
+        await harness.Reaper.StartAsync(CancellationToken.None);
+        await harness.Reaper.StopAsync(CancellationToken.None);
+
+        // Jellyfin disposes hosted services after stopping them, and a plugin reload can repeat it.
+        harness.Reaper.Dispose();
+        harness.Reaper.Dispose();
+
+        Assert.Empty(harness.Stopped);
     }
 
     private sealed class Harness

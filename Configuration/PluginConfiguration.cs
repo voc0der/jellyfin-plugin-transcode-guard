@@ -142,6 +142,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool UseStickyPausedTranscodeMessages { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets a value indicating whether paused direct play is stopped on the same timeout.
+    /// Off by default: direct play holds an open file handle and a stream slot rather than VRAM or
+    /// an encoder session, and a client that ignores the stop cannot be ended server-side.
+    /// </summary>
+    public bool ReapPausedDirectPlay { get; set; } = false;
+
+    /// <summary>
     /// Gets or sets the users whose paused transcodes are left alone. Separate from every other
     /// exclusion list.
     /// </summary>

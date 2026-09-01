@@ -310,8 +310,16 @@
                             <div class="fieldDescription checkboxFieldDescription">Sends each warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
                         </div>
 
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkReapPausedDirectPlay" name="chkReapPausedDirectPlay" />
+                                <span>Also stop paused direct play</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. Direct play holds an open file handle and a stream slot rather than VRAM or an encoder session, so this frees far less than stopping a transcode. It is also stop-only: a direct play client that ignores the stop cannot be ended server-side, because there is no FFmpeg process to end.</div>
+                        </div>
+
                         <div class="fieldDescription" style="margin-bottom: 10px;">
-                            Exclude specific users from the reaper. Their paused transcodes are left running. This list is separate from every other exclusion list.
+                            Exclude specific users from the reaper. Their paused playback is left running. This list is separate from every other exclusion list.
                         </div>
 
                         <div style="margin-bottom: 20px;">
@@ -1119,6 +1127,7 @@
                     document.getElementById('txtPausedTranscodeWarningHeader').value = config.PausedTranscodeWarningHeader || '';
                     document.getElementById('txtPausedTranscodeWarningMessage').value = config.PausedTranscodeWarningMessage || '';
                     document.getElementById('chkUseStickyPausedTranscodeMessages').checked = config.UseStickyPausedTranscodeMessages === true;
+                    document.getElementById('chkReapPausedDirectPlay').checked = config.ReapPausedDirectPlay === true;
                     MotdSection.updateVisibility();
                     GpuGuardSection.updateVisibility();
                     PausedReaperSection.updateVisibility();
@@ -1165,6 +1174,7 @@
                     config.PausedTranscodeWarningHeader = document.getElementById('txtPausedTranscodeWarningHeader').value;
                     config.PausedTranscodeWarningMessage = document.getElementById('txtPausedTranscodeWarningMessage').value;
                     config.UseStickyPausedTranscodeMessages = document.getElementById('chkUseStickyPausedTranscodeMessages').checked;
+                    config.ReapPausedDirectPlay = document.getElementById('chkReapPausedDirectPlay').checked;
                     config.AlertTranscodeReasons = ReasonSelector.getSelectedReasonNames();
                     config.ReasonMessageOverrides = ReasonSelector.getReasonMessageOverrides();
 
