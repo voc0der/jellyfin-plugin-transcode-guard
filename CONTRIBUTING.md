@@ -30,6 +30,17 @@ dotnet format style --verify-no-changes --severity warn
 - Include Jellyfin version, plugin version, and relevant logs
 - Enable the **Enable Logging** option in the plugin config to capture debug info
 
+## Rules
+
+- Keep branches, commits, and PRs focused. Do not mix unrelated local changes into the same PR.
+- Use semantic names by default.
+
+## Naming
+
+- Branches: `fix/<scope>-<summary>`, `feat/<scope>-<summary>`, `refactor/<scope>-<summary>`
+- Commits: `fix(scope): summary`, `feat(scope): summary`, `refactor(scope): summary`
+- PR titles: `fix(scope): summary`, `feat(scope): summary`, `refactor(scope): summary`
+
 ## Pull Requests
 
 - Keep changes focused and minimal
