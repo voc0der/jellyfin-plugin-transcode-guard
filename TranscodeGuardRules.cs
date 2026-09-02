@@ -151,8 +151,23 @@ internal static class TranscodeGuardRules
         ArgumentNullException.ThrowIfNull(transcodeInfo);
         ArgumentNullException.ThrowIfNull(config);
 
+        return MatchesConfiguredNagReasons(transcodeInfo.TranscodeReasons, config);
+    }
+
+    /// <summary>
+    /// Decides whether a transcode counts as one of the failures this plugin cares about. The one
+    /// place that answer is defined, so what the login nag counts and what the transcode limit
+    /// refuses can never drift apart.
+    /// </summary>
+    /// <param name="transcodeReasons">Jellyfin's reasons for the transcode.</param>
+    /// <param name="config">Plugin configuration.</param>
+    /// <returns>True when at least one configured reason is active.</returns>
+    internal static bool MatchesConfiguredNagReasons(TranscodeReason transcodeReasons, PluginConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
         // If no transcode reasons specified, it's likely bitrate limiting - don't nag.
-        if (transcodeInfo.TranscodeReasons == (TranscodeReason)0)
+        if (transcodeReasons == (TranscodeReason)0)
         {
             return false;
         }
@@ -163,7 +178,7 @@ internal static class TranscodeGuardRules
             return false;
         }
 
-        return (transcodeInfo.TranscodeReasons & enabledNagReasons) != 0;
+        return (transcodeReasons & enabledNagReasons) != 0;
     }
 
     internal static (int Days, string Label) ResolveLoginNagWindow(string? configuredTimeWindow)
@@ -176,5 +191,11 @@ internal static class TranscodeGuardRules
         return template
             .Replace("{{transcodes}}", badTranscodeCount.ToString(), StringComparison.Ordinal)
             .Replace("{{timewindow}}", timeWindowLabel, StringComparison.Ordinal);
+    }
+
+    internal static string FormatTranscodeLimitMessage(string template, int badTranscodeCount, string timeWindowLabel, int limit)
+    {
+        return FormatLoginNagMessage(template, badTranscodeCount, timeWindowLabel)
+            .Replace("{{limit}}", limit.ToString(), StringComparison.Ordinal);
     }
 }

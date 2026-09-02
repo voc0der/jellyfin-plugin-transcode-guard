@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
 using Jellyfin.Plugin.TranscodeGuard.Models;
-using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
@@ -49,14 +48,13 @@ public class PlaybackMonitor : IHostedService
     public PlaybackMonitor(
         ISessionManager sessionManager,
         IClientMessageService clientMessageService,
-        IApplicationPaths applicationPaths,
-        ILogger<PlaybackMonitor> logger,
-        ILogger<TranscodeEventStore> eventStoreLogger)
+        TranscodeEventStore eventStore,
+        ILogger<PlaybackMonitor> logger)
     {
         _sessionManager = sessionManager;
         _clientMessageService = clientMessageService;
         _logger = logger;
-        _eventStore = new TranscodeEventStore(applicationPaths, eventStoreLogger);
+        _eventStore = eventStore;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)

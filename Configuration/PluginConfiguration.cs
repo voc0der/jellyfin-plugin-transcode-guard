@@ -55,6 +55,35 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public bool UseStickyLoginNagMessages { get; set; } = false;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether a user who is over
+    /// <see cref="TranscodeLimitThreshold"/> has further transcodes refused instead of only being
+    /// nagged. Defaults to off so upgrading the plugin cannot start failing anyone's playback.
+    /// </summary>
+    public bool EnableTranscodeLimit { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets how many counted transcodes a user may accumulate in
+    /// <see cref="LoginNagTimeWindow"/> before the next one is refused. Counted the same way the
+    /// login nag counts, so this is normally set higher than <see cref="LoginNagThreshold"/>.
+    /// A value below 1 disables the refusal rather than blocking everything.
+    /// </summary>
+    public int TranscodeLimitThreshold { get; set; } = 10;
+
+    /// <summary>
+    /// Gets or sets the popup title shown to a client whose transcode was refused for being
+    /// over the limit.
+    /// </summary>
+    public string TranscodeLimitHeader { get; set; } = "Transcode limit reached";
+
+    /// <summary>
+    /// Gets or sets the popup body shown to a client whose transcode was refused for being over
+    /// the limit. Supports <c>{{transcodes}}</c>, <c>{{timewindow}}</c>, and <c>{{limit}}</c>.
+    /// </summary>
+    public string TranscodeLimitMessage { get; set; } = "You've transcoded {{transcodes}} videos in the last {{timewindow}} due to unsupported formats, which is over this server's limit of {{limit}}. Switch to a client that can direct play (mpv, VLC, or Jellyfin Media Player) to keep watching.";
+
+    public bool UseStickyTranscodeLimitMessages { get; set; } = false;
+
     public string[] AlertTranscodeReasons { get; set; } = GetDefaultAlertTranscodeReasons();
 
     public ReasonMessageOverride[] ReasonMessageOverrides { get; set; } = Array.Empty<ReasonMessageOverride>();

@@ -124,6 +124,53 @@
                         <div class="fieldDescription checkboxFieldDescription">Sends each login warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
                     </div>
 
+                    <h2>Transcode Limit</h2>
+                    <div class="fieldDescription" style="margin-bottom: 12px;">
+                        Turns the login nag's count into a hard stop. A user at or over this limit has their
+                        next transcode refused before FFmpeg starts, and is shown the message below. Set it
+                        higher than the Login Nag Threshold so users are warned before they are stopped.
+                        Counted exactly like the login nag: same time window, same trigger reasons, same user
+                        and client exclusions. Bitrate-only transcodes, audio-only streams, and direct play
+                        are never refused, so a user who is over the limit can still watch anything their
+                        client can play without transcoding.
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="chkEnableTranscodeLimit" name="chkEnableTranscodeLimit" />
+                            <span>Block transcodes once the limit is reached</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. Playback fails for the user with the message below instead of only nagging them.</div>
+                    </div>
+
+                    <div id="transcodeLimitOptions" style="display: none;">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitThreshold">Transcode Limit:</label>
+                            <input type="number" id="txtTranscodeLimitThreshold" name="txtTranscodeLimitThreshold" min="1" max="1000" class="emby-input" />
+                            <div class="fieldDescription">Refuse a transcode once the user has this many in the Login Nag Time Window.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitHeader">Blocked Title:</label>
+                            <input type="text" id="txtTranscodeLimitHeader" name="txtTranscodeLimitHeader" class="emby-input" />
+                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitMessage">Blocked Message:</label>
+                            <textarea id="txtTranscodeLimitMessage" name="txtTranscodeLimitMessage" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Shown when a transcode is refused. Use {{transcodes}} for their count, {{timewindow}} for the time window, and {{limit}} for the limit.</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyTranscodeLimitMessages" name="chkUseStickyTranscodeLimitMessages" />
+                                <span>Sticky Messages</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                        </div>
+                    </div>
+
                     <h2>User Exclusions</h2>
 
                     <div class="fieldDescription" style="margin-bottom: 10px;">
@@ -755,6 +802,32 @@
                 }
             };
 
+            // Keeps the transcode limit block collapsed unless the feature is switched on.
+            var TranscodeLimitSection = {
+                initialized: false,
+
+                init: function() {
+                    if (this.initialized) {
+                        return;
+                    }
+
+                    document.getElementById('chkEnableTranscodeLimit').addEventListener('change', this.updateVisibility);
+                    this.initialized = true;
+                },
+
+                updateVisibility: function() {
+                    var enabled = document.getElementById('chkEnableTranscodeLimit').checked;
+                    document.getElementById('transcodeLimitOptions').style.display = enabled ? 'block' : 'none';
+                },
+
+                // A blank or non-numeric field must not be saved as NaN, and a limit below 1 would
+                // refuse everything, so it falls back to the default rather than being stored.
+                readNumber: function(elementId, fallback) {
+                    var parsed = parseInt(document.getElementById(elementId).value, 10);
+                    return isNaN(parsed) || parsed < 1 ? fallback : parsed;
+                }
+            };
+
             // Keeps the paused transcode reaper block collapsed unless the feature is switched on.
             var PausedReaperSection = {
                 initialized: false,
@@ -1092,6 +1165,7 @@
                 UserExclusionManager.init();
                 MotdUserExclusionManager.init();
                 MotdSection.init();
+                TranscodeLimitSection.init();
                 GpuGuardSection.init();
                 PausedTranscodeUserExclusionManager.init();
                 PausedReaperSection.init();
@@ -1109,6 +1183,11 @@
                     document.getElementById('selectLoginNagTimeWindow').value = config.LoginNagTimeWindow || 'Week';
                     document.getElementById('txtLoginNagMessage').value = config.LoginNagMessage || '';
                     document.getElementById('chkUseStickyLoginNagMessages').checked = config.UseStickyLoginNagMessages === true;
+                    document.getElementById('chkEnableTranscodeLimit').checked = config.EnableTranscodeLimit === true;
+                    document.getElementById('txtTranscodeLimitThreshold').value = config.TranscodeLimitThreshold || 10;
+                    document.getElementById('txtTranscodeLimitHeader').value = config.TranscodeLimitHeader || '';
+                    document.getElementById('txtTranscodeLimitMessage').value = config.TranscodeLimitMessage || '';
+                    document.getElementById('chkUseStickyTranscodeLimitMessages').checked = config.UseStickyTranscodeLimitMessages === true;
                     document.getElementById('chkEnableMotd').checked = config.EnableMotd === true;
                     document.getElementById('txtMotdMessage').value = config.MotdMessage || '';
                     document.getElementById('chkUseStickyMotdMessages').checked = config.UseStickyMotdMessages === true;
@@ -1128,6 +1207,7 @@
                     document.getElementById('txtPausedTranscodeWarningMessage').value = config.PausedTranscodeWarningMessage || '';
                     document.getElementById('chkUseStickyPausedTranscodeMessages').checked = config.UseStickyPausedTranscodeMessages === true;
                     document.getElementById('chkReapPausedDirectPlay').checked = config.ReapPausedDirectPlay === true;
+                    TranscodeLimitSection.updateVisibility();
                     MotdSection.updateVisibility();
                     GpuGuardSection.updateVisibility();
                     PausedReaperSection.updateVisibility();
@@ -1156,6 +1236,11 @@
                     config.LoginNagTimeWindow = document.getElementById('selectLoginNagTimeWindow').value;
                     config.LoginNagMessage = document.getElementById('txtLoginNagMessage').value;
                     config.UseStickyLoginNagMessages = document.getElementById('chkUseStickyLoginNagMessages').checked;
+                    config.EnableTranscodeLimit = document.getElementById('chkEnableTranscodeLimit').checked;
+                    config.TranscodeLimitThreshold = TranscodeLimitSection.readNumber('txtTranscodeLimitThreshold', 10);
+                    config.TranscodeLimitHeader = document.getElementById('txtTranscodeLimitHeader').value;
+                    config.TranscodeLimitMessage = document.getElementById('txtTranscodeLimitMessage').value;
+                    config.UseStickyTranscodeLimitMessages = document.getElementById('chkUseStickyTranscodeLimitMessages').checked;
                     config.EnableMotd = document.getElementById('chkEnableMotd').checked;
                     config.MotdMessage = document.getElementById('txtMotdMessage').value;
                     config.UseStickyMotdMessages = document.getElementById('chkUseStickyMotdMessages').checked;

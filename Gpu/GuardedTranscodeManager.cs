@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.TranscodeGuard.Limits;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Streaming;
@@ -9,8 +10,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
-/// Wraps Jellyfin's <see cref="ITranscodeManager"/> so the GPU guard runs immediately before
-/// FFmpeg is launched.
+/// Wraps Jellyfin's <see cref="ITranscodeManager"/> so the transcode limit and the GPU guard run
+/// immediately before FFmpeg is launched.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -30,16 +31,19 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
 {
     private readonly ITranscodeManager _inner;
     private readonly GpuResourceGuard _guard;
+    private readonly TranscodeLimitGuard _limitGuard;
     private readonly ILogger<GuardedTranscodeManager> _logger;
     private bool _disposed;
 
     public GuardedTranscodeManager(
         ITranscodeManager inner,
         GpuResourceGuard guard,
+        TranscodeLimitGuard limitGuard,
         ILogger<GuardedTranscodeManager> logger)
     {
         _inner = inner;
         _guard = guard;
+        _limitGuard = limitGuard;
         _logger = logger;
     }
 
@@ -55,6 +59,30 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(cancellationTokenSource);
+
+        // The per-user limit is settled first: it is a policy decision that does not depend on the
+        // GPU's state, and refusing here means no VRAM reservation is spent on a job that is not
+        // allowed to run anyway.
+        var limitDecision = TranscodeLimitDecision.Allowed;
+
+        try
+        {
+            limitDecision = await _limitGuard.AssessAsync(
+                BuildLimitRequest(state, userId),
+                cancellationTokenSource.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException && ex is not OperationCanceledException)
+        {
+            // A broken guard must never break playback.
+            BestEffort(() => _logger.LogError(ex, "Transcode limit guard failed; allowing the transcode to proceed"));
+        }
+
+        if (!limitDecision.IsAdmitted)
+        {
+            // See the note below on SecurityException: this is Jellyfin's type, mapping to a clean
+            // HTTP 403 rather than a 500 with a stack trace.
+            throw new SecurityException(limitDecision.BuildRefusalReason());
+        }
 
         var admitted = true;
         GpuTranscodeRequest? request = null;
@@ -138,6 +166,26 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
             }
             throw;
         }
+    }
+
+    private static TranscodeLimitRequest BuildLimitRequest(StreamState state, Guid userId)
+    {
+        var request = state.Request;
+
+        return new TranscodeLimitRequest
+        {
+            IsVideoRequest = state.VideoRequest != null,
+            // EncodingJobInfo reads TranscodeReasons off Request, so a partially constructed state
+            // has none. No reasons reads as a bitrate-driven transcode, which is never refused.
+            TranscodeReasons = request == null ? 0 : state.TranscodeReasons,
+            // Both signals, because either alone is narrower than the Live TV the counter skips.
+            IsLiveStream = state.MediaSource?.IsInfiniteStream == true
+                || !string.IsNullOrEmpty(state.MediaSource?.LiveStreamId),
+            DeviceId = request?.DeviceId,
+            UserId = userId,
+            ItemId = request?.Id ?? Guid.Empty,
+            ItemName = state.MediaSource?.Name
+        };
     }
 
     private static GpuTranscodeRequest BuildRequest(
