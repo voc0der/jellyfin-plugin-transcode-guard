@@ -10,10 +10,9 @@ permissions:
   contents: write
 
 env:
-  # The Transcode Guard plugin identity. manifest.json also carries the retired
-  # Transcode Nag entry under its own GUID, so every write must say which one it
-  # means. Changing this value creates a new plugin as far as Jellyfin is
-  # concerned; it is not a cosmetic string.
+  # The Transcode Guard plugin identity. Changing this value creates a new
+  # plugin as far as Jellyfin is concerned, orphaning every existing install
+  # and its configuration; it is not a cosmetic string.
   PLUGIN_GUID: 2ce6b237-2610-4dfd-a34b-3f4c2ac64a88
 
 jobs:
@@ -134,10 +133,9 @@ jobs:
         REPO="${{ github.repository }}"
         IMAGE_URL="https://raw.githubusercontent.com/${REPO}/main/icon.png"
 
-        # Select the entry by GUID rather than by position. manifest.json also
-        # carries the retired Transcode Nag entry, which must never be rewritten:
-        # it is frozen at its final version so existing installs are never
-        # offered an update.
+        # Select the entry by GUID rather than by position, so a manifest that
+        # ever grows a second entry cannot have the wrong one rewritten. The
+        # check below fails the release if the GUID does not match exactly one.
         jq --arg version "$MANIFEST_VERSION" \
            --rawfile changelog CHANGELOG.md \
            --arg checksum "$CHECKSUM" \
