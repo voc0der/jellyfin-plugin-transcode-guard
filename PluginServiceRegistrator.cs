@@ -1,7 +1,9 @@
 using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Gpu;
+using Jellyfin.Plugin.TranscodeGuard.Limits;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
 using Jellyfin.Plugin.TranscodeGuard.Sessions;
 using MediaBrowser.Controller;
@@ -25,6 +27,11 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IClientMessageService, ClientMessageService>();
         serviceCollection.AddSingleton<IGpuMemoryProvider, NvidiaSmiGpuMemoryProvider>();
         serviceCollection.AddSingleton<GpuResourceGuard>();
+
+        // One store instance, so the reader in front of FFmpeg and the writer behind playback
+        // events share its lock rather than racing each other over the same file.
+        serviceCollection.AddSingleton<TranscodeEventStore>();
+        serviceCollection.AddSingleton<TranscodeLimitGuard>();
         serviceCollection.AddHostedService<PlaybackMonitor>();
         serviceCollection.AddHostedService<PausedTranscodeReaper>();
 
@@ -32,8 +39,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     }
 
     /// <summary>
-    /// Wraps Jellyfin's <c>ITranscodeManager</c> so the GPU guard can refuse a hardware transcode
-    /// before FFmpeg is launched.
+    /// Wraps Jellyfin's <c>ITranscodeManager</c> so the transcode limit and the GPU guard can
+    /// refuse a transcode before FFmpeg is launched.
     /// </summary>
     /// <remarks>
     /// Jellyfin calls plugin service registrators after its own <c>RegisterServices</c>, so the core
@@ -86,6 +93,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider => new GuardedTranscodeManager(
                 (ITranscodeManager)ActivatorUtilities.CreateInstance(provider, implementationType),
                 provider.GetRequiredService<GpuResourceGuard>(),
+                provider.GetRequiredService<TranscodeLimitGuard>(),
                 provider.GetRequiredService<ILogger<GuardedTranscodeManager>>()),
             lifetime);
 

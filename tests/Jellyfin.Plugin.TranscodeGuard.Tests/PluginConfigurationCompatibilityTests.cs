@@ -73,6 +73,63 @@ public class PluginConfigurationCompatibilityTests
     }
 
     [Fact]
+    public void TranscodeLimitIsOptInAndSitsAboveTheDefaultLoginNagThreshold()
+    {
+        var config = new PluginConfiguration();
+
+        // Upgrading the plugin must not start failing anyone's playback, and out of the box the
+        // limit must leave room for the nag to warn first.
+        Assert.False(config.EnableTranscodeLimit);
+        Assert.False(config.UseStickyTranscodeLimitMessages);
+        Assert.True(config.TranscodeLimitThreshold > config.LoginNagThreshold);
+    }
+
+    [Fact]
+    public void TranscodeLimitSettingsRoundTripThroughXml()
+    {
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+        var config = new PluginConfiguration
+        {
+            EnableTranscodeLimit = true,
+            TranscodeLimitThreshold = 12,
+            TranscodeLimitHeader = "Blocked",
+            TranscodeLimitMessage = "{{transcodes}} of {{limit}}",
+            UseStickyTranscodeLimitMessages = true
+        };
+
+        using var writer = new StringWriter();
+        serializer.Serialize(writer, config);
+
+        using var reader = new StringReader(writer.ToString());
+        var roundTripped = Assert.IsType<PluginConfiguration>(serializer.Deserialize(reader));
+
+        Assert.True(roundTripped.EnableTranscodeLimit);
+        Assert.Equal(12, roundTripped.TranscodeLimitThreshold);
+        Assert.Equal("Blocked", roundTripped.TranscodeLimitHeader);
+        Assert.Equal("{{transcodes}} of {{limit}}", roundTripped.TranscodeLimitMessage);
+        Assert.True(roundTripped.UseStickyTranscodeLimitMessages);
+    }
+
+    [Fact]
+    public void ConfigurationSavedBeforeTheTranscodeLimitExistedLoadsWithItSwitchedOff()
+    {
+        const string LegacyXml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <PluginConfiguration>
+              <EnableLoginNag>true</EnableLoginNag>
+              <LoginNagThreshold>5</LoginNagThreshold>
+            </PluginConfiguration>
+            """;
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+
+        using var reader = new StringReader(LegacyXml);
+        var config = Assert.IsType<PluginConfiguration>(serializer.Deserialize(reader));
+
+        Assert.False(config.EnableTranscodeLimit);
+        Assert.Equal(10, config.TranscodeLimitThreshold);
+    }
+
+    [Fact]
     public void PausedTranscodeReaperIsOptInAndDefaultsTo25Minutes()
     {
         var config = new PluginConfiguration();

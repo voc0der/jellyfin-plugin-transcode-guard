@@ -1,6 +1,8 @@
 using System.Linq;
+using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Gpu;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Models;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging;
@@ -313,5 +315,86 @@ internal static class TestSessions
             UserName = userName,
             Client = "Jellyfin Web"
         };
+    }
+}
+
+/// <summary>
+/// A real <see cref="TranscodeEventStore"/> over a throwaway directory, with a seeder that waits
+/// for each fire-and-forget write to land before adding the next.
+/// </summary>
+internal sealed class TestEventStore : IDisposable
+{
+    private readonly string _rootPath = Path.Combine(
+        Path.GetTempPath(),
+        "transcode-guard-store",
+        Guid.NewGuid().ToString("N"));
+
+    public TestEventStore()
+    {
+        Directory.CreateDirectory(_rootPath);
+        Store = new TranscodeEventStore(new TestApplicationPaths(_rootPath), NullLogger<TranscodeEventStore>.Instance);
+    }
+
+    public TranscodeEventStore Store { get; }
+
+    public async Task SeedBadTranscodesAsync(
+        Guid userId,
+        int count,
+        DateTime? timestamp = null,
+        string client = "Jellyfin Web",
+        bool isLiveTv = false)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            var itemId = Guid.NewGuid().ToString("N");
+            Store.AddEvent(new TranscodeEvent
+            {
+                UserId = userId.ToString(),
+                UserName = "tester",
+                ItemId = itemId,
+                ItemName = "Movie",
+                Timestamp = timestamp ?? DateTime.UtcNow.AddHours(-1),
+                Reasons = TranscodeReason.VideoCodecNotSupported,
+                Client = client,
+                IsLiveTv = isLiveTv,
+                Kind = NagEventKind.BadTranscode
+            });
+
+            await WaitForAsync(async () =>
+            {
+                var events = await Store.GetUserEventsAsync(userId.ToString(), 365);
+                return events.Any(storedEvent => storedEvent.ItemId == itemId);
+            });
+        }
+    }
+
+    private static async Task WaitForAsync(Func<Task<bool>> condition)
+    {
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            if (await condition())
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
+
+        throw new TimeoutException("The event store did not reach the expected state.");
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (Directory.Exists(_rootPath))
+            {
+                Directory.Delete(_rootPath, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+            // A leftover temp directory is not a test failure.
+        }
     }
 }

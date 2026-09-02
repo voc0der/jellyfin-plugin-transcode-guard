@@ -1,11 +1,14 @@
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
+using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Gpu;
+using Jellyfin.Plugin.TranscodeGuard.Limits;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Streaming;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Session;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -126,6 +129,31 @@ public class GuardedTranscodeManagerTests
         return state;
     }
 
+    /// <summary>
+    /// A limit guard that is switched off, for the tests that are about the GPU guard. Its store
+    /// is never read, so it needs no seeding and no cleanup.
+    /// </summary>
+    /// <returns>The guard.</returns>
+    private static TranscodeLimitGuard DisabledLimitGuard()
+    {
+        return CreateLimitGuard(
+            new PluginConfiguration { EnableTranscodeLimit = false },
+            new TestEventStore().Store,
+            new RecordingClientMessageService());
+    }
+
+    private static TranscodeLimitGuard CreateLimitGuard(
+        PluginConfiguration config,
+        TranscodeEventStore store,
+        RecordingClientMessageService messages)
+    {
+        return new TranscodeLimitGuard(
+            store,
+            messages,
+            NullLogger<TranscodeLimitGuard>.Instance,
+            () => config);
+    }
+
     private static (GuardedTranscodeManager Decorator, SpyTranscodeManager Inner, RecordingClientMessageService Messages)
         CreateDecorator(int freeMiB, bool guardEnabled = true)
     {
@@ -145,7 +173,7 @@ public class GuardedTranscodeManagerTests
             () => config);
 
         var inner = new SpyTranscodeManager();
-        var decorator = new GuardedTranscodeManager(inner, guard, NullLogger<GuardedTranscodeManager>.Instance);
+        var decorator = new GuardedTranscodeManager(inner, guard, DisabledLimitGuard(), NullLogger<GuardedTranscodeManager>.Instance);
 
         return (decorator, inner, messages);
     }
@@ -239,7 +267,7 @@ public class GuardedTranscodeManagerTests
             () => new PluginConfiguration { EnableGpuResourceGuard = true });
 
         var inner = new SpyTranscodeManager();
-        var decorator = new GuardedTranscodeManager(inner, guard, NullLogger<GuardedTranscodeManager>.Instance);
+        var decorator = new GuardedTranscodeManager(inner, guard, DisabledLimitGuard(), NullLogger<GuardedTranscodeManager>.Instance);
         using var cts = new CancellationTokenSource();
 
         await decorator.StartFfMpeg(
@@ -294,6 +322,7 @@ public class GuardedTranscodeManagerTests
         var decorator = new GuardedTranscodeManager(
             inner,
             guard,
+            DisabledLimitGuard(),
             new ThrowingLogger<GuardedTranscodeManager>());
         using var cts = new CancellationTokenSource();
 
@@ -307,6 +336,91 @@ public class GuardedTranscodeManagerTests
 
         Assert.Equal("MediaBrowser.Controller.Net.SecurityException", exception.GetType().FullName);
         Assert.Equal(0, inner.StartFfMpegCallCount);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_RefusesAUserOverTheTranscodeLimitBeforeFfmpegStarts()
+    {
+        using var store = new TestEventStore();
+        await store.SeedBadTranscodesAsync(AliceId, 3);
+
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+        var config = new PluginConfiguration
+        {
+            EnableTranscodeLimit = true,
+            TranscodeLimitThreshold = 3,
+            EnableGpuResourceGuard = false
+        };
+
+        var inner = new SpyTranscodeManager();
+        var decorator = new GuardedTranscodeManager(
+            inner,
+            new GpuResourceGuard(
+                FakeGpuMemoryProvider.WithFreeMiB(100000),
+                messages,
+                NullLogger<GpuResourceGuard>.Instance,
+                () => config),
+            CreateLimitGuard(config, store.Store, messages),
+            NullLogger<GuardedTranscodeManager>.Instance);
+
+        var state = CreateHardwareVideoState();
+        state.Request.TranscodeReasons = nameof(TranscodeReason.VideoCodecNotSupported);
+        using var cts = new CancellationTokenSource();
+
+        var exception = await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
+            state,
+            "/config/transcodes/abc.m3u8",
+            CudaNvencArguments,
+            AliceId,
+            TranscodingJobType.Hls,
+            cts));
+
+        Assert.Equal("MediaBrowser.Controller.Net.SecurityException", exception.GetType().FullName);
+        Assert.Equal(0, inner.StartFfMpegCallCount);
+        Assert.Single(messages.SentMessages);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_LetsABitrateOnlyTranscodeThroughForTheSameOverLimitUser()
+    {
+        using var store = new TestEventStore();
+        await store.SeedBadTranscodesAsync(AliceId, 3);
+
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+        var config = new PluginConfiguration
+        {
+            EnableTranscodeLimit = true,
+            TranscodeLimitThreshold = 3,
+            EnableGpuResourceGuard = false
+        };
+
+        var inner = new SpyTranscodeManager();
+        var decorator = new GuardedTranscodeManager(
+            inner,
+            new GpuResourceGuard(
+                FakeGpuMemoryProvider.WithFreeMiB(100000),
+                messages,
+                NullLogger<GpuResourceGuard>.Instance,
+                () => config),
+            CreateLimitGuard(config, store.Store, messages),
+            NullLogger<GuardedTranscodeManager>.Instance);
+
+        // Jellyfin reports no reason when the client is simply capping bitrate.
+        var state = CreateHardwareVideoState();
+        using var cts = new CancellationTokenSource();
+
+        await decorator.StartFfMpeg(
+            state,
+            "/config/transcodes/abc.m3u8",
+            CudaNvencArguments,
+            AliceId,
+            TranscodingJobType.Hls,
+            cts);
+
+        Assert.Equal(1, inner.StartFfMpegCallCount);
+        Assert.Empty(messages.SentMessages);
     }
 
     [Fact]
@@ -369,6 +483,7 @@ public class GuardedTranscodeManagerTests
             new RecordingClientMessageService(),
             NullLogger<GpuResourceGuard>.Instance,
             () => new PluginConfiguration()));
+        services.AddSingleton(DisabledLimitGuard());
         services.AddSingleton<ILogger<GuardedTranscodeManager>>(NullLogger<GuardedTranscodeManager>.Instance);
         return services;
     }
