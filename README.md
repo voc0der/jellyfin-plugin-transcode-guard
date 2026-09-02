@@ -59,6 +59,9 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 
 ## Installation
 
+> [!NOTE]
+> Migrating from Transcode Nag: run both until the config matches, then uninstall the old one.
+
 ### Plugin Repository
 
 1. Go to **Dashboard** → **Plugins** → **Repositories**
