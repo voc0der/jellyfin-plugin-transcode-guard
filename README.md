@@ -59,6 +59,9 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 
 ## Installation
 
+> [!NOTE]
+> Migrating from Transcode Nag: run both until the config matches, then uninstall the old one.
+
 ### Plugin Repository
 
 1. Go to **Dashboard** → **Plugins** → **Repositories**
@@ -85,14 +88,6 @@ dotnet build --configuration Release
 ```
 
 Copy `bin/Release/net8.0/Jellyfin.Plugin.TranscodeGuard.dll` into a versioned plugin folder, then restart Jellyfin.
-
-## Migrating from Transcode Nag
-
-Transcode Guard is the successor to Transcode Nag, published under its own plugin identity. It is no longer listed in the plugin catalog.
-
-- Installing Transcode Guard does not touch an existing Transcode Nag install, and does not carry its configuration over. The two run side by side until you remove the old one.
-- An existing Transcode Nag install keeps working, but is finished at 1.0.1.40 and will never be offered another update.
-- Install Transcode Guard, configure it, then uninstall Transcode Nag from **Dashboard** -> **Plugins** -> **My Plugins**.
 
 ## Configuration
 
