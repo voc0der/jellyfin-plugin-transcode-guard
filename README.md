@@ -32,10 +32,17 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 </p>
 
 <p align="center">
-  <img src="docs/images/transcode-guard-login-monitor.png" alt="Transcode Guard login settings, exclusions, and live session monitor in the Jellyfin dashboard" width="880" />
+  <img src="docs/images/transcode-guard-login-monitor.png" alt="Transcode Guard login nag settings in the Jellyfin dashboard" width="880" />
 </p>
 <p align="center">
-  <em>Login nags, user exclusions, and the live session monitor</em>
+  <em>Login nag threshold, time window, and message</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/transcode-guard-transcode-limit.png" alt="Transcode Guard transcode limit settings, user exclusions, and live session monitor in the Jellyfin dashboard" width="880" />
+</p>
+<p align="center">
+  <em>The transcode limit, user exclusions, and the live session monitor</em>
 </p>
 
 <p align="center">
@@ -43,6 +50,13 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 </p>
 <p align="center">
   <em>GPU resource guard settings</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/transcode-guard-paused-reaper.png" alt="Transcode Guard paused transcode reaper settings in the Jellyfin dashboard" width="880" />
+</p>
+<p align="center">
+  <em>The paused transcode reaper, its warning, and its own exclusion list</em>
 </p>
 
 ## What It Does
