@@ -19,6 +19,8 @@ internal sealed class TestApplicationPaths : IApplicationPaths
         CachePath = Path.Combine(rootPath, "cache");
         TempDirectory = Path.Combine(rootPath, "temp");
         VirtualDataPath = Path.Combine(rootPath, "virtual-data");
+        TrickplayPath = Path.Combine(rootPath, "trickplay");
+        BackupPath = Path.Combine(rootPath, "backups");
     }
 
     public string ProgramDataPath { get; }
@@ -46,4 +48,18 @@ internal sealed class TestApplicationPaths : IApplicationPaths
     public string TempDirectory { get; }
 
     public string VirtualDataPath { get; }
+
+    public string TrickplayPath { get; }
+
+    public string BackupPath { get; }
+
+    public void MakeSanityCheckOrThrow()
+    {
+        throw new NotSupportedException();
+    }
+
+    public void CreateAndCheckMarker(string path, string markerName, bool recursive = false)
+    {
+        throw new NotSupportedException();
+    }
 }
