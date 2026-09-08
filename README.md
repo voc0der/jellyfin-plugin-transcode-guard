@@ -104,7 +104,7 @@ See here for all [FEATURES.md](FEATURES.md).
 dotnet build --configuration Release
 ```
 
-Copy `bin/Release/net8.0/Jellyfin.Plugin.TranscodeGuard.dll` into a versioned plugin folder, then restart Jellyfin.
+Copy `bin/Release/net10.0/Jellyfin.Plugin.TranscodeGuard.dll` into a versioned plugin folder, then restart Jellyfin.
 
 ## Configuration
 
