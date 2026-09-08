@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.48",
+        "changelog": "## What's Changed\n\n- chore: target Jellyfin 12.0.0 and .NET 10 (d047b26)\n- docs(readme): split the settings dump into FEATURES.md [skip ci] (0bc5677)\n- docs(screenshots): add transcode limit and paused reaper config shots [skip ci] (fafa708)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.47...v1.0.1.48\n",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/download/v1.0.1.48/Transcode_Guard_v1.0.1.48.zip",
+        "checksum": "b9d00e18bb989430058ed4158fcb5fa7",
+        "timestamp": "2026-09-08T21:16:57Z"
+      },
+      {
         "version": "1.0.1.47",
         "changelog": "## What's Changed\n\n- feat(limits): refuse transcodes once a user passes a configurable limit (cb8cdb9)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.46...v1.0.1.47\n",
         "targetAbi": "10.9.0.0",
