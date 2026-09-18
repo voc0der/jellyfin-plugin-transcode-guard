@@ -11,6 +11,7 @@ off across upgrades.
 | Your problem | Feature | Default |
 | --- | --- | --- |
 | Users don't know their client is forcing a transcode | [Playback nag](#playback-nag) | **On** |
+| Browser users miss the nag or need a link to a better client | [Browser install warning](#browser-install-warning) | Off |
 | A few users transcode constantly and don't notice the nags | [Login nag](#login-nag) | **On** |
 | Nagging isn't working and you want it to actually stop | [Transcode limit](#transcode-limit) | Off |
 | Paused streams hold VRAM for hours | [Paused transcode reaper](#paused-transcode-reaper) | Off |
@@ -60,6 +61,44 @@ reason list wins.
 watching three bad files gets three messages, but seeking around one file gets
 one. Every nagged playback is also recorded, which is what feeds the login nag
 and the transcode limit.
+
+---
+
+## Browser install warning
+
+In a browser, Jellyfin Web shows the playback nag as a small toast. It drops the
+title and disappears after about 3.6 seconds, whatever Message Timeout says.
+This setting replaces that toast, for browser sessions only, with a proper
+warning: a centred dialog with your title, message, the trigger reason, and an
+**Install Client** button linking wherever you point it.
+
+**Needs the [JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector)
+plugin.** Transcode Guard registers its script with it automatically. Without
+the injector, nothing breaks: browsers get the normal toast.
+
+**Only Jellyfin Web counts as a browser.** The test is the client name Jellyfin
+records for the session, not the browser name, so Firefox, Chrome, LibreWolf and
+anything else running Jellyfin Web all qualify. Jellyfin Media Player, MPV Shim,
+Android, Android TV, Swiftfin and every other client keep the normal message,
+even the ones that are the web UI inside an app.
+
+**Nothing extra runs.** The warning rides on the playback nag Jellyfin already
+sends over that session's own connection, so the browser makes no extra
+requests. Only the one browser that is transcoding sees it, not the user's
+other devices. Which playbacks get nagged is still decided entirely by the
+playback nag settings, exclusions and filters.
+
+| Setting | Does | Default |
+| --- | --- | --- |
+| Enable enhanced warning for Jellyfin Web browsers | Turns it on | Off |
+| Install URL | Where the button goes. Must be a full `http://` or `https://` link; anything else leaves the button out | Empty (no button) |
+| Title / Message | The dialog's text. The trigger reason is added underneath | "Transcoding detected" |
+| Close automatically after (seconds) | 5-180. The countdown pauses while the pointer is over the dialog | 60 |
+
+The viewer can close it early with **Continue** or Esc, and the same playback
+never shows it twice. Jellyfin Web still shows its own toast briefly underneath.
+Browser tabs opened before you switched this on need a reload to pick up the
+script.
 
 ---
 

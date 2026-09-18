@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Session;
@@ -48,6 +49,31 @@ public interface IClientMessageService
     Task<bool> SendMessageAsync(
         SessionInfo session,
         MessageCommand command,
+        bool useStickyMessages,
+        string context,
+        string detail,
+        bool enableLogging,
+        ILogger logger,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends a message command that carries extra DisplayMessage arguments alongside Header, Text,
+    /// and TimeoutMs. Clients that do not know the extra arguments show the message as usual.
+    /// </summary>
+    /// <param name="session">Target session.</param>
+    /// <param name="command">The message to display.</param>
+    /// <param name="extraArguments">Additional DisplayMessage arguments; they never replace Header, Text, or TimeoutMs.</param>
+    /// <param name="useStickyMessages">Whether to refresh the message for clients that dismiss it early.</param>
+    /// <param name="context">Short label for logs, for example "playback nag".</param>
+    /// <param name="detail">Extra log detail for this specific send.</param>
+    /// <param name="enableLogging">Whether informational delivery logging is switched on.</param>
+    /// <param name="logger">The caller's logger, so log categories stay with the feature that sent the message.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True only when Jellyfin accepted the command for a live controller.</returns>
+    Task<bool> SendMessageAsync(
+        SessionInfo session,
+        MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments,
         bool useStickyMessages,
         string context,
         string detail,

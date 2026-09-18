@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Gpu;
 using Jellyfin.Plugin.TranscodeGuard.Limits;
@@ -34,6 +35,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<TranscodeLimitGuard>();
         serviceCollection.AddHostedService<PlaybackMonitor>();
         serviceCollection.AddHostedService<PausedTranscodeReaper>();
+        serviceCollection.AddHostedService<BrowserScriptRegistrar>();
 
         TryDecorateTranscodeManager(serviceCollection);
     }

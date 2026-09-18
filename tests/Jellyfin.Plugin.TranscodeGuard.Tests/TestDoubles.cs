@@ -52,6 +52,8 @@ internal sealed class RecordingClientMessageService : IClientMessageService
 
     public List<(SessionInfo Session, MessageCommand Command, bool UseStickyMessages)> SentMessages { get; } = new();
 
+    public List<IReadOnlyDictionary<string, string>?> SentExtraArguments { get; } = new();
+
     public void AddSession(SessionInfo session)
     {
         _sessionsByDeviceId[session.DeviceId] = session;
@@ -80,8 +82,21 @@ internal sealed class RecordingClientMessageService : IClientMessageService
         bool enableLogging,
         ILogger logger,
         CancellationToken cancellationToken)
+        => SendMessageAsync(session, command, null, useStickyMessages, context, detail, enableLogging, logger, cancellationToken);
+
+    public Task<bool> SendMessageAsync(
+        SessionInfo session,
+        MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments,
+        bool useStickyMessages,
+        string context,
+        string detail,
+        bool enableLogging,
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
         SentMessages.Add((session, command, useStickyMessages));
+        SentExtraArguments.Add(extraArguments);
         return Task.FromResult(true);
     }
 }
@@ -250,6 +265,28 @@ internal sealed class ThrowingLogger<T> : ILogger<T>
 }
 
 /// <summary>
+/// Keeps every formatted log entry so tests can assert on what an admin would see.
+/// </summary>
+internal sealed class ListLogger<T> : ILogger<T>
+{
+    public List<(LogLevel Level, string Message)> Entries { get; } = new();
+
+    public IDisposable? BeginScope<TState>(TState state)
+        where TState : notnull
+        => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter)
+        => Entries.Add((logLevel, formatter(state, exception)));
+}
+
+/// <summary>
 /// Fails the way Jellyfin's raw WebSocket send path can: with an exception
 /// <see cref="ClientMessageService"/> does not catch.
 /// </summary>
@@ -271,6 +308,18 @@ internal sealed class ThrowingClientMessageService : IClientMessageService
     public Task<bool> SendMessageAsync(
         SessionInfo session,
         MessageCommand command,
+        bool useStickyMessages,
+        string context,
+        string detail,
+        bool enableLogging,
+        ILogger logger,
+        CancellationToken cancellationToken)
+        => throw new System.Net.WebSockets.WebSocketException("the remote party closed the connection");
+
+    public Task<bool> SendMessageAsync(
+        SessionInfo session,
+        MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments,
         bool useStickyMessages,
         string context,
         string detail,
