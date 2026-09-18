@@ -85,6 +85,49 @@
                         <div class="fieldDescription">Optional. Matching clients will never receive playback or login nags, and their history will not count toward login nags.</div>
                     </div>
 
+                    <h2>Browser Install Warning</h2>
+                    <div class="fieldDescription" style="margin-bottom: 12px;">
+                        Turns the playback nag into a full warning with an install link, for Jellyfin Web
+                        browser sessions only. Native Jellyfin clients (Jellyfin Media Player, MPV Shim,
+                        Android, Android TV, Swiftfin and others) keep getting the normal Transcode Guard
+                        message. Requires the <strong>JavaScript Injector</strong> plugin; without it,
+                        browsers get the normal message too. Jellyfin Web still shows its own short popup
+                        underneath the warning.
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="chkEnableBrowserInstallNag" name="chkEnableBrowserInstallNag" />
+                            <span>Enable enhanced warning for Jellyfin Web browsers</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. Uses the same triggers, exclusions and filters as the playback nag; only how the nag looks in a browser changes. Browser tabs opened before this was switched on need a reload.</div>
+                    </div>
+
+                    <div id="browserInstallNagOptions" style="display: none;">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtBrowserInstallUrl">Install URL:</label>
+                            <input type="url" id="txtBrowserInstallUrl" name="txtBrowserInstallUrl" class="emby-input" placeholder="https://example.com/jellyfin-client" />
+                            <div class="fieldDescription">Where the Install Client button goes. Must be a full http:// or https:// link. Leave empty to show the warning without a button.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagTitle">Title:</label>
+                            <input type="text" id="txtBrowserNagTitle" name="txtBrowserNagTitle" class="emby-input" />
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagMessage">Message:</label>
+                            <textarea id="txtBrowserNagMessage" name="txtBrowserNagMessage" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">The playback trigger reason is listed underneath automatically.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagAutoCloseSeconds">Close automatically after (seconds):</label>
+                            <input type="number" id="txtBrowserNagAutoCloseSeconds" name="txtBrowserNagAutoCloseSeconds" min="5" max="180" class="emby-input" />
+                            <div class="fieldDescription">5-180 seconds. The countdown pauses while the pointer is over the warning, and the viewer can close it sooner with Continue or Esc.</div>
+                        </div>
+                    </div>
+
                     <h2>Login Nag Settings</h2>
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
@@ -828,6 +871,55 @@
                 }
             };
 
+            // Keeps the browser install warning block collapsed unless the feature is switched on.
+            var BrowserInstallNagSection = {
+                initialized: false,
+                minAutoCloseSeconds: 5,
+                maxAutoCloseSeconds: 180,
+                defaultAutoCloseSeconds: 60,
+
+                init: function() {
+                    if (this.initialized) {
+                        return;
+                    }
+
+                    document.getElementById('chkEnableBrowserInstallNag').addEventListener('change', this.updateVisibility);
+                    this.initialized = true;
+                },
+
+                updateVisibility: function() {
+                    var enabled = document.getElementById('chkEnableBrowserInstallNag').checked;
+                    document.getElementById('browserInstallNagOptions').style.display = enabled ? 'block' : 'none';
+                },
+
+                // Empty is allowed (no button); anything else must be a full http(s) link, the same
+                // rule the server applies before it hands the link to a browser.
+                isValidInstallUrl: function(value) {
+                    if (!value) {
+                        return true;
+                    }
+
+                    if (!/^https?:\/\//i.test(value)) {
+                        return false;
+                    }
+
+                    try {
+                        return !!new URL(value).hostname;
+                    } catch (e) {
+                        return false;
+                    }
+                },
+
+                readAutoCloseSeconds: function() {
+                    var parsed = parseInt(document.getElementById('txtBrowserNagAutoCloseSeconds').value, 10);
+                    if (isNaN(parsed)) {
+                        return this.defaultAutoCloseSeconds;
+                    }
+
+                    return Math.min(this.maxAutoCloseSeconds, Math.max(this.minAutoCloseSeconds, parsed));
+                }
+            };
+
             // Keeps the paused transcode reaper block collapsed unless the feature is switched on.
             var PausedReaperSection = {
                 initialized: false,
@@ -1166,6 +1258,7 @@
                 MotdUserExclusionManager.init();
                 MotdSection.init();
                 TranscodeLimitSection.init();
+                BrowserInstallNagSection.init();
                 GpuGuardSection.init();
                 PausedTranscodeUserExclusionManager.init();
                 PausedReaperSection.init();
@@ -1188,6 +1281,11 @@
                     document.getElementById('txtTranscodeLimitHeader').value = config.TranscodeLimitHeader || '';
                     document.getElementById('txtTranscodeLimitMessage').value = config.TranscodeLimitMessage || '';
                     document.getElementById('chkUseStickyTranscodeLimitMessages').checked = config.UseStickyTranscodeLimitMessages === true;
+                    document.getElementById('chkEnableBrowserInstallNag').checked = config.EnableBrowserInstallNag === true;
+                    document.getElementById('txtBrowserInstallUrl').value = config.BrowserInstallUrl || '';
+                    document.getElementById('txtBrowserNagTitle').value = config.BrowserNagTitle || '';
+                    document.getElementById('txtBrowserNagMessage').value = config.BrowserNagMessage || '';
+                    document.getElementById('txtBrowserNagAutoCloseSeconds').value = config.BrowserNagAutoCloseSeconds || BrowserInstallNagSection.defaultAutoCloseSeconds;
                     document.getElementById('chkEnableMotd').checked = config.EnableMotd === true;
                     document.getElementById('txtMotdMessage').value = config.MotdMessage || '';
                     document.getElementById('chkUseStickyMotdMessages').checked = config.UseStickyMotdMessages === true;
@@ -1208,6 +1306,7 @@
                     document.getElementById('chkUseStickyPausedTranscodeMessages').checked = config.UseStickyPausedTranscodeMessages === true;
                     document.getElementById('chkReapPausedDirectPlay').checked = config.ReapPausedDirectPlay === true;
                     TranscodeLimitSection.updateVisibility();
+                    BrowserInstallNagSection.updateVisibility();
                     MotdSection.updateVisibility();
                     GpuGuardSection.updateVisibility();
                     PausedReaperSection.updateVisibility();
@@ -1220,6 +1319,13 @@
 
             document.getElementById('TranscodeGuardConfigForm').addEventListener('submit', function (e) {
                 e.preventDefault();
+
+                var browserInstallUrl = document.getElementById('txtBrowserInstallUrl').value.trim();
+                if (!BrowserInstallNagSection.isValidInstallUrl(browserInstallUrl)) {
+                    Dashboard.alert('The browser install URL must be a full http:// or https:// link, or empty.');
+                    return false;
+                }
+
                 Dashboard.showLoadingMsg();
 
                 ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function (config) {
@@ -1241,7 +1347,12 @@
                     config.TranscodeLimitHeader = document.getElementById('txtTranscodeLimitHeader').value;
                     config.TranscodeLimitMessage = document.getElementById('txtTranscodeLimitMessage').value;
                     config.UseStickyTranscodeLimitMessages = document.getElementById('chkUseStickyTranscodeLimitMessages').checked;
-                    config.EnableMotd = document.getElementById('chkEnableMotd').checked;
+                    config.EnableBrowserInstallNag = document.getElementById('chkEnableBrowserInstallNag').checked;
+                    config.BrowserInstallUrl = browserInstallUrl;
+                    config.BrowserNagTitle = document.getElementById('txtBrowserNagTitle').value;
+                    config.BrowserNagMessage = document.getElementById('txtBrowserNagMessage').value;
+                    config.BrowserNagAutoCloseSeconds = BrowserInstallNagSection.readAutoCloseSeconds();
+                    config.EnableMotd =document.getElementById('chkEnableMotd').checked;
                     config.MotdMessage = document.getElementById('txtMotdMessage').value;
                     config.UseStickyMotdMessages = document.getElementById('chkUseStickyMotdMessages').checked;
                     config.MotdIncludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdIncludedClientPatterns').value);

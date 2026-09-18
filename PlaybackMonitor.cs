@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
 using Jellyfin.Plugin.TranscodeGuard.Models;
@@ -377,7 +378,42 @@ public class PlaybackMonitor : IHostedService
             },
             config.UseStickyPlaybackMessages,
             PlaybackNagMessageContext,
-            $"Reasons: {transcodeReasons}").ConfigureAwait(false);
+            $"Reasons: {transcodeReasons}",
+            BuildBrowserNagArguments(session, config)).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// For Jellyfin Web, adds the install warning to the nag's own DisplayMessage. The injected
+    /// script turns it into the modal; a tab without the script shows the normal popup, so this
+    /// only ever changes how the nag looks, never whether it is sent.
+    /// </summary>
+    private Dictionary<string, string>? BuildBrowserNagArguments(SessionInfo session, Configuration.PluginConfiguration config)
+    {
+        if (!BrowserNagRules.ShouldUseBrowserNag(session, config))
+        {
+            if (config.EnableBrowserInstallNag && config.EnableLogging)
+            {
+                _logger.LogDebug(
+                    "Session {SessionId} is {Client}, not Jellyfin Web; sending the standard playback nag",
+                    session.Id,
+                    session.Client ?? "Unknown");
+            }
+
+            return null;
+        }
+
+        var nagId = Guid.NewGuid();
+        if (config.EnableLogging)
+        {
+            _logger.LogInformation(
+                "Session {SessionId} is Jellyfin Web ({DeviceName}); attaching browser install warning {NagId} for user {UserName}",
+                session.Id,
+                session.DeviceName ?? "Unknown",
+                nagId.ToString("N"),
+                session.UserName ?? "Unknown");
+        }
+
+        return BrowserNagRules.BuildArguments(config, session.TranscodingInfo?.TranscodeReasons ?? 0, nagId);
     }
 
     private Task<bool> SendMessageCommandWithDiagnosticsAsync(
@@ -386,13 +422,15 @@ public class PlaybackMonitor : IHostedService
         MessageCommand command,
         bool useStickyMessages,
         string context,
-        string detail)
+        string detail,
+        IReadOnlyDictionary<string, string>? extraArguments = null)
     {
         // The logger is passed through so these diagnostics keep appearing under PlaybackMonitor's
         // category rather than moving to the shared service.
         return _clientMessageService.SendMessageAsync(
             session,
             command,
+            extraArguments,
             useStickyMessages,
             context,
             detail,

@@ -84,6 +84,28 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public bool UseStickyTranscodeLimitMessages { get; set; } = false;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether Jellyfin Web browser sessions get the install
+    /// warning modal on top of the playback nag. Needs the JavaScript Injector plugin; without it
+    /// browsers keep getting the normal popup. Off by default so upgrading changes nothing.
+    /// </summary>
+    public bool EnableBrowserInstallNag { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the link behind the modal's install button. Only absolute http and https URLs
+    /// are used; anything else leaves the button out rather than rendering a broken or unsafe link.
+    /// </summary>
+    public string BrowserInstallUrl { get; set; } = string.Empty;
+
+    public string BrowserNagTitle { get; set; } = "Transcoding detected";
+
+    public string BrowserNagMessage { get; set; } = "Your browser is causing this stream to be transcoded. For improved playback, install the recommended client.";
+
+    /// <summary>
+    /// Gets or sets how long the modal stays up before closing itself, clamped to 5-180 seconds.
+    /// </summary>
+    public int BrowserNagAutoCloseSeconds { get; set; } = 60;
+
     public string[] AlertTranscodeReasons { get; set; } = GetDefaultAlertTranscodeReasons();
 
     public ReasonMessageOverride[] ReasonMessageOverrides { get; set; } = Array.Empty<ReasonMessageOverride>();

@@ -176,6 +176,43 @@ public class PluginConfigurationCompatibilityTests
     }
 
     [Fact]
+    public void BrowserInstallWarningIsOptInAndClosesItselfAfterAMinute()
+    {
+        var config = new PluginConfiguration();
+
+        Assert.False(config.EnableBrowserInstallNag);
+        Assert.Equal(string.Empty, config.BrowserInstallUrl);
+        Assert.Equal("Transcoding detected", config.BrowserNagTitle);
+        Assert.Equal(60, config.BrowserNagAutoCloseSeconds);
+    }
+
+    [Fact]
+    public void BrowserInstallWarningSettingsRoundTripThroughXml()
+    {
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+        var config = new PluginConfiguration
+        {
+            EnableBrowserInstallNag = true,
+            BrowserInstallUrl = "https://example.com/client",
+            BrowserNagTitle = "Use the app",
+            BrowserNagMessage = "Please install it.",
+            BrowserNagAutoCloseSeconds = 120
+        };
+
+        using var writer = new StringWriter();
+        serializer.Serialize(writer, config);
+
+        using var reader = new StringReader(writer.ToString());
+        var roundTripped = Assert.IsType<PluginConfiguration>(serializer.Deserialize(reader));
+
+        Assert.True(roundTripped.EnableBrowserInstallNag);
+        Assert.Equal("https://example.com/client", roundTripped.BrowserInstallUrl);
+        Assert.Equal("Use the app", roundTripped.BrowserNagTitle);
+        Assert.Equal("Please install it.", roundTripped.BrowserNagMessage);
+        Assert.Equal(120, roundTripped.BrowserNagAutoCloseSeconds);
+    }
+
+    [Fact]
     public void ConfigurationSavedBeforeTheReaperExistedStaysOptedOut()
     {
         const string OlderXml = """

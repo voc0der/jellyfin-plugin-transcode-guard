@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/github/v/release/voc0der/jellyfin-plugin-transcode-guard?label=stable%20release" alt="Stable release version" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/tree/main/tests">
-    <img src="https://img.shields.io/badge/coverage-71%25-yellowgreen" alt="Code coverage percentage" />
+    <img src="https://img.shields.io/badge/coverage-73%25-yellowgreen" alt="Code coverage percentage" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/issues">
     <img src="https://img.shields.io/github/issues/voc0der/jellyfin-plugin-transcode-guard?color=DAA520" alt="Open issues" />
@@ -29,6 +29,20 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 </p>
 <p align="center">
   <em>Playback nag configuration and trigger reason selection</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/transcode-guard-browser-install-warning.png" alt="Transcode Guard browser install warning settings in the Jellyfin dashboard" width="880" />
+</p>
+<p align="center">
+  <em>The browser install warning, its install link, and auto-close timeout</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/transcode-guard-browser-warning-dialog.png" alt="The browser install warning dialog over a transcoding video in Jellyfin Web" width="880" />
+</p>
+<p align="center">
+  <em>What a Jellyfin Web viewer sees when their browser forces a transcode</em>
 </p>
 
 <p align="center">
@@ -63,6 +77,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 
 - Sends a playback nag when Jellyfin reports selected `TranscodeReasons`.
 - Ignores bitrate-only transcodes, so users lowering quality for bandwidth do not get warned.
+- Can turn the playback nag into a full warning with an install link for Jellyfin Web browser sessions (needs the JavaScript Injector plugin); every other client keeps the normal message.
 - Can exclude Live TV channel streams from playback nags and login nag history.
 - Can send a login nag when a user keeps hitting bad transcodes over the last week or month.
 - Can refuse a user's next transcode outright once that same count passes a second, higher limit, so heavy transcoders are warned before they are stopped.

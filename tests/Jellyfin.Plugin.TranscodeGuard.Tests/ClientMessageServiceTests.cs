@@ -416,6 +416,109 @@ public class ClientMessageServiceTests
         Assert.Equal(1, sendCount);
     }
 
+    [Fact]
+    public void BuildDisplayMessageCommand_MatchesJellyfinsOwnDisplayMessage()
+    {
+        var command = ClientMessageService.BuildDisplayMessageCommand(
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 12500 },
+            null);
+
+        Assert.Equal(GeneralCommandType.DisplayMessage, command.Name);
+        Assert.Equal(
+            new Dictionary<string, string>
+            {
+                ["Header"] = "header",
+                ["Text"] = "text",
+                ["TimeoutMs"] = "12500"
+            },
+            command.Arguments);
+    }
+
+    [Fact]
+    public void BuildDisplayMessageCommand_AddsExtrasWithoutReplacingWhatEveryClientShows()
+    {
+        var command = ClientMessageService.BuildDisplayMessageCommand(
+            new MessageCommand { Header = "header", Text = "text" },
+            new Dictionary<string, string>
+            {
+                ["Text"] = "hijacked",
+                ["TimeoutMs"] = "1",
+                ["TranscodeGuardNag"] = "1"
+            });
+
+        Assert.Equal("text", command.Arguments["Text"]);
+        Assert.False(command.Arguments.ContainsKey("TimeoutMs"));
+        Assert.Equal("1", command.Arguments["TranscodeGuardNag"]);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ExtraArgumentsTravelWithEveryStickySendToTheOneSession()
+    {
+        var sends = new List<(string SessionId, IReadOnlyDictionary<string, string>? Extras)>();
+        var session = ActiveSession();
+        var bystander = TestSessions.Create("session-2", "device-2", AliceId);
+        bystander.AddController(new ActiveSessionController());
+        var extras = new Dictionary<string, string> { ["TranscodeGuardNagId"] = "nag-1" };
+        await using var service = new ClientMessageService(
+            () => new[] { session, bystander },
+            (sessionId, _, extraArguments, _) =>
+            {
+                lock (sends)
+                {
+                    sends.Add((sessionId, extraArguments));
+                }
+
+                return Task.CompletedTask;
+            },
+            (_, _) => Task.CompletedTask);
+
+        Assert.True(await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 15000 },
+            extras,
+            true,
+            "test",
+            "sticky delivery with extras",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(3, sends.Count);
+        Assert.All(sends, send =>
+        {
+            Assert.Equal("session-1", send.SessionId);
+            Assert.Same(extras, send.Extras);
+        });
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WithoutExtrasPassesNoneToTheSender()
+    {
+        var received = new List<IReadOnlyDictionary<string, string>?>();
+        var session = ActiveSession();
+        await using var service = new ClientMessageService(
+            () => new[] { session },
+            (_, _, extraArguments, _) =>
+            {
+                received.Add(extraArguments);
+                return Task.CompletedTask;
+            },
+            (_, _) => Task.CompletedTask);
+
+        Assert.True(await service.SendMessageAsync(
+            session,
+            new MessageCommand { Header = "header", Text = "text", TimeoutMs = 9000 },
+            false,
+            "test",
+            "plain delivery",
+            false,
+            NullLogger.Instance,
+            CancellationToken.None));
+
+        Assert.Equal(new IReadOnlyDictionary<string, string>?[] { null }, received);
+    }
+
     private static SessionInfo ActiveSession()
     {
         var session = TestSessions.Create("session-1", "device-1", AliceId);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,7 +18,7 @@ namespace Jellyfin.Plugin.TranscodeGuard.Messaging;
 public sealed class ClientMessageService : IClientMessageService, IDisposable, IAsyncDisposable
 {
     private readonly Func<IEnumerable<SessionInfo>> _sessionsAccessor;
-    private readonly Func<string, MessageCommand, CancellationToken, Task> _commandSender;
+    private readonly Func<string, MessageCommand, IReadOnlyDictionary<string, string>?, CancellationToken, Task> _commandSender;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private readonly Dictionary<SessionInfo, SessionDeliveryState> _deliveryStates = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<DeliveryRegistration> _activeDeliveries = new();
@@ -33,10 +34,11 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
         ArgumentNullException.ThrowIfNull(applicationLifetime);
 
         _sessionsAccessor = () => sessionManager.Sessions;
-        _commandSender = (sessionId, command, cancellationToken) => SendMessageCommandAsync(
+        _commandSender = (sessionId, command, extraArguments, cancellationToken) => SendMessageCommandAsync(
             sessionManager,
             sessionId,
             command,
+            extraArguments,
             cancellationToken);
         _delay = Task.Delay;
         _applicationStoppingRegistration = applicationLifetime.ApplicationStopping.Register(CancelAllPendingMessages);
@@ -47,6 +49,19 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
         Func<string, MessageCommand, CancellationToken, Task> commandSender,
         Func<TimeSpan, CancellationToken, Task> delay,
         CancellationToken applicationStopping = default)
+        : this(
+            sessionsAccessor,
+            WithoutExtraArguments(commandSender ?? throw new ArgumentNullException(nameof(commandSender))),
+            delay,
+            applicationStopping)
+    {
+    }
+
+    internal ClientMessageService(
+        Func<IEnumerable<SessionInfo>> sessionsAccessor,
+        Func<string, MessageCommand, IReadOnlyDictionary<string, string>?, CancellationToken, Task> commandSender,
+        Func<TimeSpan, CancellationToken, Task> delay,
+        CancellationToken applicationStopping = default)
     {
         _sessionsAccessor = sessionsAccessor ?? throw new ArgumentNullException(nameof(sessionsAccessor));
         _commandSender = commandSender ?? throw new ArgumentNullException(nameof(commandSender));
@@ -54,12 +69,77 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
         _applicationStoppingRegistration = applicationStopping.Register(CancelAllPendingMessages);
     }
 
+    private static Func<string, MessageCommand, IReadOnlyDictionary<string, string>?, CancellationToken, Task> WithoutExtraArguments(
+        Func<string, MessageCommand, CancellationToken, Task> commandSender)
+        => (sessionId, command, _, cancellationToken) => commandSender(sessionId, command, cancellationToken);
+
     private static Task SendMessageCommandAsync(
         ISessionManager sessionManager,
         string sessionId,
         MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments,
         CancellationToken cancellationToken)
-        => sessionManager.SendMessageCommand(null, sessionId, command, cancellationToken);
+    {
+        // Plain messages keep going through Jellyfin's own conversion. Only a message that carries
+        // extra arguments is built here, because MessageCommand has nowhere to put them.
+        if (extraArguments == null || extraArguments.Count == 0)
+        {
+            return sessionManager.SendMessageCommand(null, sessionId, command, cancellationToken);
+        }
+
+        return sessionManager.SendGeneralCommand(
+            null,
+            sessionId,
+            BuildDisplayMessageCommand(command, extraArguments),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Builds the DisplayMessage command exactly as Jellyfin's <c>SendMessageCommand</c> does
+    /// (identical in 12.0 and 12.1), then adds the extra arguments.
+    /// </summary>
+    /// <param name="command">The message to display.</param>
+    /// <param name="extraArguments">Additional arguments; Header, Text, and TimeoutMs cannot be overridden.</param>
+    /// <returns>The general command to send.</returns>
+    internal static GeneralCommand BuildDisplayMessageCommand(
+        MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var generalCommand = new GeneralCommand
+        {
+            Name = GeneralCommandType.DisplayMessage
+        };
+
+        generalCommand.Arguments["Header"] = command.Header;
+        generalCommand.Arguments["Text"] = command.Text;
+
+        if (command.TimeoutMs.HasValue)
+        {
+            generalCommand.Arguments["TimeoutMs"] = command.TimeoutMs.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (extraArguments != null)
+        {
+            foreach (var (name, value) in extraArguments)
+            {
+                // The standard arguments decide what every client shows - an absent TimeoutMs, for
+                // one, turns Jellyfin Web's toast into a blocking alert - so extras can only add.
+                if (!IsStandardDisplayMessageArgument(name))
+                {
+                    generalCommand.Arguments.TryAdd(name, value);
+                }
+            }
+        }
+
+        return generalCommand;
+    }
+
+    private static bool IsStandardDisplayMessageArgument(string name)
+        => string.Equals(name, "Header", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "Text", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "TimeoutMs", StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public SessionInfo? ResolveSession(string? deviceId, Guid userId, Guid itemId)
@@ -144,9 +224,31 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
     }
 
     /// <inheritdoc />
+    public Task<bool> SendMessageAsync(
+        SessionInfo session,
+        MessageCommand command,
+        bool useStickyMessages,
+        string context,
+        string detail,
+        bool enableLogging,
+        ILogger logger,
+        CancellationToken cancellationToken)
+        => SendMessageAsync(
+            session,
+            command,
+            null,
+            useStickyMessages,
+            context,
+            detail,
+            enableLogging,
+            logger,
+            cancellationToken);
+
+    /// <inheritdoc />
     public async Task<bool> SendMessageAsync(
         SessionInfo session,
         MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments,
         bool useStickyMessages,
         string context,
         string detail,
@@ -207,6 +309,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
             await _commandSender(
                 session.Id,
                 commandToSend,
+                extraArguments,
                 initialSendCancellation.Token).ConfigureAwait(false);
 
             if (enableLogging)
@@ -224,6 +327,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
                     state,
                     delivery,
                     commandToSend,
+                    extraArguments,
                     context,
                     enableLogging,
                     logger);
@@ -287,6 +391,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
         SessionDeliveryState state,
         DeliveryRegistration delivery,
         MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments,
         string context,
         bool enableLogging,
         ILogger logger)
@@ -298,7 +403,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
 
         // The first delivery determines SendMessageAsync's result. Refreshes remain asynchronous
         // so a GPU refusal does not hold its HTTP response open for the visibility window.
-        _ = RepeatStickyMessageAsync(session, state, delivery, command, context, enableLogging, logger);
+        _ = RepeatStickyMessageAsync(session, state, delivery, command, extraArguments, context, enableLogging, logger);
         return true;
     }
 
@@ -307,6 +412,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
         SessionDeliveryState state,
         DeliveryRegistration delivery,
         MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments,
         string context,
         bool enableLogging,
         ILogger logger)
@@ -318,6 +424,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
                 state,
                 delivery,
                 command,
+                extraArguments,
                 context,
                 2,
                 enableLogging,
@@ -327,6 +434,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
                 state,
                 delivery,
                 command,
+                extraArguments,
                 context,
                 3,
                 enableLogging,
@@ -345,6 +453,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
         SessionDeliveryState state,
         DeliveryRegistration delivery,
         MessageCommand command,
+        IReadOnlyDictionary<string, string>? extraArguments,
         string context,
         int sendNumber,
         bool enableLogging,
@@ -376,7 +485,7 @@ public sealed class ClientMessageService : IClientMessageService, IDisposable, I
                 return;
             }
 
-            await _commandSender(session.Id, command, delivery.CancellationToken).ConfigureAwait(false);
+            await _commandSender(session.Id, command, extraArguments, delivery.CancellationToken).ConfigureAwait(false);
 
             if (enableLogging)
             {
