@@ -498,7 +498,7 @@ public class GuardedTranscodeManagerTests
         Assert.Null(PluginServiceRegistrator.DecorationFailure);
 
         // Exactly one registration must remain, or Jellyfin would resolve an unguarded manager.
-        Assert.Single(services.Where(service => service.ServiceType == typeof(ITranscodeManager)));
+        Assert.Single(services, service => service.ServiceType == typeof(ITranscodeManager));
 
         using var provider = services.BuildServiceProvider();
         var resolved = provider.GetRequiredService<ITranscodeManager>();
@@ -541,7 +541,7 @@ public class GuardedTranscodeManagerTests
         PluginServiceRegistrator.TryDecorateTranscodeManager(services);
         PluginServiceRegistrator.TryDecorateTranscodeManager(services);
 
-        Assert.Single(services.Where(service => service.ServiceType == typeof(ITranscodeManager)));
+        Assert.Single(services, service => service.ServiceType == typeof(ITranscodeManager));
 
         using var provider = services.BuildServiceProvider();
         var decorator = Assert.IsType<GuardedTranscodeManager>(provider.GetRequiredService<ITranscodeManager>());

@@ -42,7 +42,7 @@ public class TranscodeEventStoreTests
 
         var afterCredits = await harness.Store.GetUserEventsAsync(userId, 30);
 
-        Assert.Single(afterCredits.Where(e => e.Kind == NagEventKind.ImprovementCredit));
+        Assert.Single(afterCredits, e => e.Kind == NagEventKind.ImprovementCredit);
         Assert.Contains(afterCredits, e => e.ItemId == "credit-new");
         Assert.DoesNotContain(afterCredits, e => e.ItemId == "credit-old");
 
