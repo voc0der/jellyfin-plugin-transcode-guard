@@ -32,6 +32,20 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 </p>
 
 <p align="center">
+  <img src="docs/images/transcode-guard-browser-install-warning.png" alt="Transcode Guard browser install warning settings in the Jellyfin dashboard" width="880" />
+</p>
+<p align="center">
+  <em>The browser install warning, its install link, and auto-close timeout</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/transcode-guard-browser-warning-dialog.png" alt="The browser install warning dialog over a transcoding video in Jellyfin Web" width="880" />
+</p>
+<p align="center">
+  <em>What a Jellyfin Web viewer sees when their browser forces a transcode</em>
+</p>
+
+<p align="center">
   <img src="docs/images/transcode-guard-login-monitor.png" alt="Transcode Guard login nag settings in the Jellyfin dashboard" width="880" />
 </p>
 <p align="center">
