@@ -70,7 +70,12 @@ In a browser, Jellyfin Web shows the playback nag as a small toast. It drops the
 title and disappears after about 3.6 seconds, whatever Message Timeout says.
 This setting replaces that toast, for browser sessions only, with a proper
 warning: a centred dialog with your title, message, the trigger reason, and an
-**Install Client** button linking wherever you point it.
+**Install Client** button linking wherever you point it. A browser refused by
+the [GPU resource guard](#gpu-resource-guard) gets the same dialog, carrying the
+refusal's title and message instead; there the toast is usually lost behind
+Jellyfin Web's own playback error. Since playback has already failed, that
+version has a **Close** button, and its reason line reads "Your browser can't
+play this directly: …" so it isn't mistaken for the cause of the refusal.
 
 **Needs the [JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector)
 plugin.** Transcode Guard registers its script with it automatically. Without
@@ -82,23 +87,23 @@ anything else running Jellyfin Web all qualify. Jellyfin Media Player, MPV Shim,
 Android, Android TV, Swiftfin and every other client keep the normal message,
 even the ones that are the web UI inside an app.
 
-**Nothing extra runs.** The warning rides on the playback nag Jellyfin already
-sends over that session's own connection, so the browser makes no extra
-requests. Only the one browser that is transcoding sees it, not the user's
-other devices. Which playbacks get nagged is still decided entirely by the
-playback nag settings, exclusions and filters.
+**Nothing extra runs.** The warning rides on the playback nag or GPU refusal
+Jellyfin already sends over that session's own connection, so the browser makes
+no extra requests. Only the one browser that is transcoding sees it, not the
+user's other devices. Which playbacks get nagged or refused is still decided
+entirely by those features' own settings, exclusions and filters.
 
 | Setting | Does | Default |
 | --- | --- | --- |
 | Enable enhanced warning for Jellyfin Web browsers | Turns it on | Off |
 | Install URL | Where the button goes. Must be a full `http://` or `https://` link; anything else leaves the button out | Empty (no button) |
-| Title / Message | The dialog's text. The trigger reason is added underneath | "Transcoding detected" |
+| Title / Message | The dialog's text. The trigger reason is added underneath. GPU refusals use the Refusal Title / Refusal Message instead | "Transcoding detected" |
 | Close automatically after (seconds) | 5-180. The countdown pauses while the pointer is over the dialog | 60 |
 
-The viewer can close it early with **Continue** or Esc, and the same playback
-never shows it twice. Jellyfin Web still shows its own toast briefly underneath.
-Browser tabs opened before you switched this on need a reload to pick up the
-script.
+The viewer can close it early with **Continue** (**Close** on a refusal) or Esc,
+and the same playback never shows it twice. Jellyfin Web still shows its own
+toast briefly underneath. Browser tabs opened before you switched this on need a
+reload to pick up the script.
 
 ---
 
@@ -218,7 +223,7 @@ small budget and can use a gap that a "keep 2GB free" rule would waste, while a
 | GPU index | Fallback device. An explicit GPU chosen by FFmpeg wins over this | 0 |
 | GPU check timeout (ms) | How long to wait for `nvidia-smi` before giving up and allowing | 1000 |
 | nvidia-smi path | Leave blank to resolve from `PATH` | blank |
-| Refusal Title / Refusal Message | The popup — keep server detail out of it | "Transcoding unavailable" |
+| Refusal Title / Refusal Message | The popup — keep server detail out of it. Also the text of the [browser install warning](#browser-install-warning) when a browser is refused | "Transcoding unavailable" |
 
 **Scope.** NVIDIA video transcodes only. Direct play, direct stream, remux,
 audio-only, and CPU transcodes are never refused. QSV, VAAPI, and VideoToolbox

@@ -228,6 +228,8 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
                     ?? state.VideoStream?.RealFrameRate
                     ?? state.VideoStream?.AverageFrameRate,
             OutputRefFrames = request == null ? null : state.TargetRefFrames,
+            // Read off Request like the output shape, so a partially constructed state has none.
+            TranscodeReasons = request == null ? 0 : state.TranscodeReasons,
             OutputPath = outputPath,
             DeviceId = request?.DeviceId,
             PlaySessionId = request?.PlaySessionId,

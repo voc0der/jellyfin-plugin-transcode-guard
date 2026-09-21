@@ -2,8 +2,8 @@
  * Transcode Guard: shows the browser install warning in Jellyfin Web.
  *
  * Registered through the JavaScript Injector plugin. It makes no requests of its own: the server
- * attaches the warning to the playback nag it already sends over this session's WebSocket, and
- * this script only renders it. Tabs without the script keep Jellyfin's normal popup.
+ * attaches the warning to the playback nag or transcode refusal it already sends over this
+ * session's WebSocket, and this script only renders it. Tabs without the script keep Jellyfin's normal popup.
  *
  * Written in ES5 on purpose. JavaScript Injector serves every plugin's script from one file, so
  * syntax an older TV browser cannot parse would break the other scripts too.
@@ -26,9 +26,15 @@
     var REASON_ARGUMENT = 'TranscodeGuardReason';
     var INSTALL_URL_ARGUMENT = 'TranscodeGuardInstallUrl';
     var AUTO_CLOSE_SECONDS_ARGUMENT = 'TranscodeGuardAutoCloseSeconds';
+    var DISMISS_LABEL_ARGUMENT = 'TranscodeGuardDismissLabel';
+    var REASON_LABEL_ARGUMENT = 'TranscodeGuardReasonLabel';
     var MIN_AUTO_CLOSE_SECONDS = 5;
     var MAX_AUTO_CLOSE_SECONDS = 180;
     var DEFAULT_AUTO_CLOSE_SECONDS = 60;
+
+    // A playback nag sends no labels; a refusal sends its own, because playback has already failed.
+    var DEFAULT_DISMISS_LABEL = 'Continue';
+    var DEFAULT_REASON_LABEL = 'Reason';
 
     var HOST_ID = 'transcode-guard-browser-nag';
 
@@ -66,7 +72,7 @@
         '}',
         '.transcode-guard-button:focus { outline: 3px solid var(--tg-accent); outline-offset: 2px; }',
         '.transcode-guard-install { background: var(--tg-accent); color: var(--tg-accent-text); text-transform: uppercase; letter-spacing: 0.03em; }',
-        '.transcode-guard-continue { background: var(--tg-secondary); color: var(--tg-text); border-color: var(--tg-border); }',
+        '.transcode-guard-dismiss { background: var(--tg-secondary); color: var(--tg-text); border-color: var(--tg-border); }',
         '.transcode-guard-timer { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; overflow: hidden; }',
         '.transcode-guard-timer-bar {',
         '  height: 100%; background: var(--tg-accent); transform-origin: left center;',
@@ -93,7 +99,7 @@
         + '<p class="transcode-guard-message" id="transcode-guard-message"></p>'
         + '<p class="transcode-guard-reason"></p>'
         + '<div class="transcode-guard-actions">'
-        + '<button type="button" class="transcode-guard-button transcode-guard-continue">Continue</button>'
+        + '<button type="button" class="transcode-guard-button transcode-guard-dismiss"></button>'
         + '<a class="transcode-guard-button transcode-guard-install" target="_blank" rel="noopener noreferrer">Install client</a>'
         + '</div>'
         + '<div class="transcode-guard-timer" aria-hidden="true"><div class="transcode-guard-timer-bar"></div></div>'
@@ -145,6 +151,8 @@
                 title: String(args[TITLE_ARGUMENT] || ''),
                 message: String(args[MESSAGE_ARGUMENT] || ''),
                 reason: String(args[REASON_ARGUMENT] || ''),
+                reasonLabel: String(args[REASON_LABEL_ARGUMENT] || DEFAULT_REASON_LABEL),
+                dismissLabel: String(args[DISMISS_LABEL_ARGUMENT] || DEFAULT_DISMISS_LABEL),
                 installUrl: safeUrl(args[INSTALL_URL_ARGUMENT]),
                 autoCloseSeconds: clampSeconds(args[AUTO_CLOSE_SECONDS_ARGUMENT])
             });
@@ -198,14 +206,15 @@
         var backdrop = root.querySelector('.transcode-guard-backdrop');
         var dialog = root.querySelector('.transcode-guard-dialog');
         var install = root.querySelector('.transcode-guard-install');
-        var continueButton = root.querySelector('.transcode-guard-continue');
+        var dismissButton = root.querySelector('.transcode-guard-dismiss');
         var reason = root.querySelector('.transcode-guard-reason');
 
         root.querySelector('.transcode-guard-title').textContent = nag.title;
         root.querySelector('.transcode-guard-message').textContent = nag.message;
+        dismissButton.textContent = nag.dismissLabel;
 
         if (nag.reason) {
-            reason.textContent = 'Reason: ' + nag.reason;
+            reason.textContent = nag.reasonLabel + ': ' + nag.reason;
         } else {
             reason.parentNode.removeChild(reason);
         }
@@ -233,7 +242,7 @@
 
         root.querySelector('.transcode-guard-timer-bar').style.animationDuration = nag.autoCloseSeconds + 's';
 
-        continueButton.addEventListener('click', close);
+        dismissButton.addEventListener('click', close);
 
         backdrop.addEventListener('mousedown', function (event) {
             // Clicking outside the dialog keeps focus, so keys cannot reach the player behind it.
@@ -255,7 +264,7 @@
                 event.preventDefault();
                 close();
             } else if (event.key === 'Tab') {
-                trapFocus(event, root, install ? [continueButton, install] : [continueButton]);
+                trapFocus(event, root, install ? [dismissButton, install] : [dismissButton]);
             }
 
             // Keep Jellyfin's player shortcuts (space, arrows, f) from acting behind the warning.
@@ -265,7 +274,7 @@
         current = state;
         container().appendChild(host);
         document.addEventListener('fullscreenchange', onFullscreenChange);
-        (install || continueButton).focus();
+        (install || dismissButton).focus();
         startTimer(state);
     }
 

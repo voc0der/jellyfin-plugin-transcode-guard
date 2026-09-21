@@ -197,6 +197,55 @@ public class BrowserNagRulesTests
     }
 
     [Fact]
+    public void BuildRefusalArguments_UsesTheRefusalTextInPlaceOfTheNagText()
+    {
+        var config = Enabled();
+        config.BrowserInstallUrl = "https://example.com/client";
+        config.BrowserNagTitle = "Use the app";
+        config.BrowserNagMessage = "Your browser can't play this.";
+        config.BrowserNagAutoCloseSeconds = 90;
+
+        var arguments = BrowserNagRules.BuildRefusalArguments(
+            config,
+            TranscodeReason.VideoCodecNotSupported,
+            Guid.NewGuid(),
+            "Transcoding unavailable",
+            "GPU resources are currently busy.");
+
+        Assert.Equal("Transcoding unavailable", arguments[BrowserNagRules.TitleArgument]);
+        Assert.Equal("GPU resources are currently busy.", arguments[BrowserNagRules.MessageArgument]);
+
+        // Everything but the text still comes from the browser warning settings.
+        Assert.Equal("Video codec not supported", arguments[BrowserNagRules.ReasonArgument]);
+        Assert.Equal("https://example.com/client", arguments[BrowserNagRules.InstallUrlArgument]);
+        Assert.Equal("90", arguments[BrowserNagRules.AutoCloseSecondsArgument]);
+    }
+
+    [Fact]
+    public void BuildRefusalArguments_LabelsTheDialogForPlaybackThatHasAlreadyFailed()
+    {
+        var arguments = BrowserNagRules.BuildRefusalArguments(
+            Enabled(),
+            TranscodeReason.VideoCodecNotSupported,
+            Guid.NewGuid(),
+            "Transcoding unavailable",
+            "GPU resources are currently busy.");
+
+        Assert.Equal("Close", arguments[BrowserNagRules.DismissLabelArgument]);
+        Assert.Equal("Your browser can't play this directly", arguments[BrowserNagRules.ReasonLabelArgument]);
+    }
+
+    [Fact]
+    public void BuildArguments_LeavesThePlaybackNagOnTheScriptsOwnLabels()
+    {
+        var arguments = BrowserNagRules.BuildArguments(Enabled(), TranscodeReason.VideoCodecNotSupported, Guid.NewGuid());
+
+        // Absent labels mean Continue and Reason, so a nag over playing video is unchanged.
+        Assert.False(arguments.ContainsKey(BrowserNagRules.DismissLabelArgument));
+        Assert.False(arguments.ContainsKey(BrowserNagRules.ReasonLabelArgument));
+    }
+
+    [Fact]
     public void BuildArguments_NeverUsesTheStandardDisplayMessageArgumentNames()
     {
         var config = Enabled();

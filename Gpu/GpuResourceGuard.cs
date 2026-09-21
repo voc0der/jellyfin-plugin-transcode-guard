@@ -4,8 +4,10 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging;
 
@@ -359,22 +361,57 @@ public sealed class GpuResourceGuard
             return;
         }
 
+        // An admin who blanks these fields should still get a usable popup.
+        var header = Fallback(config.GpuGuardDeniedHeader, DefaultDeniedHeader);
+        var text = Fallback(config.GpuGuardDeniedMessage, DefaultDeniedMessage);
+
         // Delivery is best effort. A client that cannot show a popup is still refused.
         await _clientMessageService.SendMessageAsync(
             session,
             new MessageCommand
             {
-                // An admin who blanks these fields should still get a usable popup.
-                Header = Fallback(config.GpuGuardDeniedHeader, DefaultDeniedHeader),
-                Text = Fallback(config.GpuGuardDeniedMessage, DefaultDeniedMessage),
+                Header = header,
+                Text = text,
                 TimeoutMs = config.MessageTimeoutMs
             },
+            BuildBrowserNagArguments(session, config, request, header, text),
             config.UseStickyGpuGuardMessages,
             "gpu guard denial",
             "Hardware transcode refused",
             config.EnableLogging,
             _logger,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// For Jellyfin Web, adds the install warning to the refusal's own DisplayMessage. A refused
+    /// browser is by definition transcoding, and Jellyfin Web's playback error covers the toast,
+    /// so the dialog is where the viewer actually learns why playback failed.
+    /// </summary>
+    private Dictionary<string, string>? BuildBrowserNagArguments(
+        SessionInfo session,
+        PluginConfiguration config,
+        GpuTranscodeRequest request,
+        string header,
+        string text)
+    {
+        if (!BrowserNagRules.ShouldUseBrowserNag(session, config))
+        {
+            return null;
+        }
+
+        var nagId = Guid.NewGuid();
+        if (config.EnableLogging)
+        {
+            BestEffort(() => _logger.LogInformation(
+                "Session {SessionId} is Jellyfin Web ({DeviceName}); attaching browser install warning {NagId} to the GPU refusal for user {UserName}",
+                session.Id,
+                session.DeviceName ?? "Unknown",
+                nagId.ToString("N"),
+                session.UserName ?? "Unknown"));
+        }
+
+        return BrowserNagRules.BuildRefusalArguments(config, request.TranscodeReasons, nagId, header, text);
     }
 
     private void LogQueryFailure(int gpuIndex, GpuMemoryQueryResult? memory)
