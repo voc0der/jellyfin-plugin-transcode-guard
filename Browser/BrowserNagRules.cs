@@ -11,8 +11,9 @@ namespace Jellyfin.Plugin.TranscodeGuard.Browser;
 
 /// <summary>
 /// Decides which sessions get the browser install warning and builds what the injected script
-/// renders. The warning rides on the playback nag's own DisplayMessage as extra arguments, so
-/// Jellyfin Web still shows its normal popup wherever the script is not running.
+/// renders. The warning rides on the playback nag's, GPU refusal's, or transcode limit block's own
+/// DisplayMessage as extra arguments, so Jellyfin Web still shows its normal popup wherever the
+/// script is not running.
 /// </summary>
 internal static class BrowserNagRules
 {
@@ -34,6 +35,13 @@ internal static class BrowserNagRules
     internal const string ReasonArgument = "TranscodeGuardReason";
     internal const string InstallUrlArgument = "TranscodeGuardInstallUrl";
     internal const string AutoCloseSecondsArgument = "TranscodeGuardAutoCloseSeconds";
+    internal const string DismissLabelArgument = "TranscodeGuardDismissLabel";
+    internal const string ReasonLabelArgument = "TranscodeGuardReasonLabel";
+
+    // Playback has already failed by the time a refusal is shown, so there is nothing to
+    // continue, and a bare "Reason:" under the refusal would read as the cause of the refusal.
+    internal const string RefusalDismissLabel = "Close";
+    internal const string RefusalReasonLabel = "Your browser can't play this directly";
 
     private const string DefaultTitle = "Transcoding detected";
     private const string DefaultMessage = "Your browser is causing this stream to be transcoded. For improved playback, install the recommended client.";
@@ -52,8 +60,8 @@ internal static class BrowserNagRules
         => string.Equals(session?.Client, JellyfinWebClient, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Decides whether a playback nag should carry the browser warning. Whether the nag is sent at
-    /// all is still decided by the existing playback nag rules.
+    /// Decides whether a playback nag or a refused transcode's message should carry the browser
+    /// warning. Whether the message is sent at all is still decided by the feature that sends it.
     /// </summary>
     /// <param name="session">The session being nagged.</param>
     /// <param name="config">Plugin configuration.</param>
@@ -139,14 +147,54 @@ internal static class BrowserNagRules
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        // An admin who blanks these fields should still get a usable warning.
+        return Build(
+            config,
+            transcodeReasons,
+            nagId,
+            Fallback(config.BrowserNagTitle, DefaultTitle),
+            Fallback(config.BrowserNagMessage, DefaultMessage));
+    }
+
+    /// <summary>
+    /// Builds the install warning for a refused transcode (GPU refusal or transcode limit block),
+    /// around the refusal's own title and text so the dialog says what the popup it replaces
+    /// would have said.
+    /// </summary>
+    /// <param name="config">Plugin configuration; supplies the install link and the countdown.</param>
+    /// <param name="transcodeReasons">Jellyfin's reasons for the transcode.</param>
+    /// <param name="nagId">Identifies this nag, so sticky resends of it are shown once.</param>
+    /// <param name="title">The dialog title.</param>
+    /// <param name="message">The dialog message.</param>
+    /// <returns>The arguments to add to the refusal's DisplayMessage.</returns>
+    internal static Dictionary<string, string> BuildRefusalArguments(
+        PluginConfiguration config,
+        TranscodeReason transcodeReasons,
+        Guid nagId,
+        string title,
+        string message)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var arguments = Build(config, transcodeReasons, nagId, title, message);
+        arguments[DismissLabelArgument] = RefusalDismissLabel;
+        arguments[ReasonLabelArgument] = RefusalReasonLabel;
+        return arguments;
+    }
+
+    private static Dictionary<string, string> Build(
+        PluginConfiguration config,
+        TranscodeReason transcodeReasons,
+        Guid nagId,
+        string title,
+        string message)
+    {
         var arguments = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [MarkerArgument] = MarkerValue,
             [NagIdArgument] = nagId.ToString("N", CultureInfo.InvariantCulture),
-
-            // An admin who blanks these fields should still get a usable warning.
-            [TitleArgument] = Fallback(config.BrowserNagTitle, DefaultTitle),
-            [MessageArgument] = Fallback(config.BrowserNagMessage, DefaultMessage),
+            [TitleArgument] = title,
+            [MessageArgument] = message,
             [AutoCloseSecondsArgument] = ClampAutoCloseSeconds(config.BrowserNagAutoCloseSeconds).ToString(CultureInfo.InvariantCulture)
         };
 

@@ -1,5 +1,7 @@
+using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using Jellyfin.Plugin.TranscodeGuard.Gpu;
+using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jellyfin.Plugin.TranscodeGuard.Tests;
@@ -250,6 +252,106 @@ public class GpuResourceGuardTests
         await guard.IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None);
 
         var text = Assert.Single(messages.SentMessages).Command.Text + Assert.Single(messages.SentMessages).Command.Header;
+
+        foreach (var forbidden in new[] { "700", "1500", "nvenc", "cuda", "VRAM", "187", "nvidia-smi" })
+        {
+            Assert.DoesNotContain(forbidden, text, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public async Task DenialMessage_ToJellyfinWebCarriesTheBrowserWarningWithTheRefusalText()
+    {
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+        var config = EnabledConfig();
+        config.EnableBrowserInstallNag = true;
+        config.BrowserInstallUrl = "https://example.com/client";
+        config.GpuGuardDeniedHeader = "GPU full";
+        config.GpuGuardDeniedMessage = "Try the app instead.";
+        var guard = CreateGuard(config, provider, messages);
+        var request = HardwareTranscodeRequest();
+        request.TranscodeReasons = TranscodeReason.VideoCodecNotSupported;
+
+        Assert.False(await guard.IsAdmittedAsync(request, CancellationToken.None));
+
+        // The box says what the popup it replaces says, not the playback nag's text.
+        var sent = Assert.Single(messages.SentMessages);
+        var arguments = Assert.Single(messages.SentExtraArguments);
+        Assert.NotNull(arguments);
+        Assert.Equal(BrowserNagRules.MarkerValue, arguments[BrowserNagRules.MarkerArgument]);
+        Assert.Equal(sent.Command.Header, arguments[BrowserNagRules.TitleArgument]);
+        Assert.Equal(sent.Command.Text, arguments[BrowserNagRules.MessageArgument]);
+        Assert.Equal("GPU full", arguments[BrowserNagRules.TitleArgument]);
+        Assert.Equal("Try the app instead.", arguments[BrowserNagRules.MessageArgument]);
+        Assert.Equal("Video codec not supported", arguments[BrowserNagRules.ReasonArgument]);
+        Assert.Equal("https://example.com/client", arguments[BrowserNagRules.InstallUrlArgument]);
+
+        // Playback has already failed, so the dialog is closed rather than continued past.
+        Assert.Equal(BrowserNagRules.RefusalDismissLabel, arguments[BrowserNagRules.DismissLabelArgument]);
+        Assert.Equal(BrowserNagRules.RefusalReasonLabel, arguments[BrowserNagRules.ReasonLabelArgument]);
+    }
+
+    [Fact]
+    public async Task DenialMessage_BrowserWarningFallsBackToTheDefaultRefusalText()
+    {
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+        var config = EnabledConfig();
+        config.EnableBrowserInstallNag = true;
+        config.GpuGuardDeniedHeader = " ";
+        config.GpuGuardDeniedMessage = string.Empty;
+        var guard = CreateGuard(config, provider, messages);
+
+        Assert.False(await guard.IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None));
+
+        var arguments = Assert.Single(messages.SentExtraArguments);
+        Assert.NotNull(arguments);
+        Assert.Equal("Transcoding unavailable", arguments[BrowserNagRules.TitleArgument]);
+        Assert.Contains("GPU resources are currently busy", arguments[BrowserNagRules.MessageArgument], StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Jellyfin Web", false)]
+    [InlineData("Jellyfin Media Player", true)]
+    [InlineData("Jellyfin Android", true)]
+    public async Task DenialMessage_OtherClientsOrTheFeatureOffGetOnlyThePlainPopup(string client, bool featureOn)
+    {
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        var session = TestSessions.Create("session-2", "device-2", AliceId);
+        session.Client = client;
+        messages.AddSession(session);
+        var config = EnabledConfig();
+        config.EnableBrowserInstallNag = featureOn;
+        var guard = CreateGuard(config, provider, messages);
+
+        Assert.False(await guard.IsAdmittedAsync(HardwareTranscodeRequest(), CancellationToken.None));
+
+        // The plain popup is still sent; it just carries nothing for the script.
+        Assert.Single(messages.SentMessages);
+        Assert.Null(Assert.Single(messages.SentExtraArguments));
+    }
+
+    [Fact]
+    public async Task DenialMessage_BrowserWarningLeaksNoServerSideDetail()
+    {
+        var provider = FakeGpuMemoryProvider.WithFreeMiB(700);
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+        var config = EnabledConfig();
+        config.EnableBrowserInstallNag = true;
+        var guard = CreateGuard(config, provider, messages);
+        var request = HardwareTranscodeRequest();
+        request.TranscodeReasons = TranscodeReason.VideoCodecNotSupported | TranscodeReason.VideoRangeTypeNotSupported;
+
+        await guard.IsAdmittedAsync(request, CancellationToken.None);
+
+        var arguments = Assert.Single(messages.SentExtraArguments);
+        Assert.NotNull(arguments);
+        var text = string.Join('\n', arguments.Values);
 
         foreach (var forbidden in new[] { "700", "1500", "nvenc", "cuda", "VRAM", "187", "nvidia-smi" })
         {

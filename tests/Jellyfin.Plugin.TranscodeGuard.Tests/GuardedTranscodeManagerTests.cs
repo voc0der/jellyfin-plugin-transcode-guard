@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Gpu;
@@ -200,6 +201,47 @@ public class GuardedTranscodeManagerTests
         Assert.Contains("VRAM budget", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, inner.StartFfMpegCallCount);
         Assert.Single(messages.SentMessages);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_LowVramRefusalTellsABrowserWhyItWasTranscoding()
+    {
+        var config = new PluginConfiguration
+        {
+            EnableGpuResourceGuard = true,
+            GpuIndex = 0,
+            EnableBrowserInstallNag = true
+        };
+
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var guard = new GpuResourceGuard(
+            FakeGpuMemoryProvider.WithFreeMiB(700),
+            messages,
+            NullLogger<GpuResourceGuard>.Instance,
+            () => config);
+        var decorator = new GuardedTranscodeManager(
+            new SpyTranscodeManager(),
+            guard,
+            DisabledLimitGuard(),
+            NullLogger<GuardedTranscodeManager>.Instance);
+
+        var state = CreateHardwareVideoState();
+        state.Request.TranscodeReasons = nameof(TranscodeReason.VideoCodecNotSupported);
+        using var cts = new CancellationTokenSource();
+
+        await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
+            state,
+            "/config/transcodes/abc.m3u8",
+            CudaNvencArguments,
+            AliceId,
+            TranscodingJobType.Hls,
+            cts));
+
+        var arguments = Assert.Single(messages.SentExtraArguments);
+        Assert.NotNull(arguments);
+        Assert.Equal("Video codec not supported", arguments[BrowserNagRules.ReasonArgument]);
     }
 
     [Fact]

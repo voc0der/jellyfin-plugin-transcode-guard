@@ -87,8 +87,8 @@
 
                     <h2>Browser Install Warning</h2>
                     <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Turns the playback nag into a full warning with an install link, for Jellyfin Web
-                        browser sessions only. Native Jellyfin clients (Jellyfin Media Player, MPV Shim,
+                        Turns the playback nag, GPU resource guard refusals and transcode limit blocks into
+                        a full warning with an install link, for Jellyfin Web browser sessions only. Native Jellyfin clients (Jellyfin Media Player, MPV Shim,
                         Android, Android TV, Swiftfin and others) keep getting the normal Transcode Guard
                         message. Requires the <strong>JavaScript Injector</strong> plugin; without it,
                         browsers get the normal message too. Jellyfin Web still shows its own short popup
@@ -100,7 +100,7 @@
                             <input type="checkbox" is="emby-checkbox" id="chkEnableBrowserInstallNag" name="chkEnableBrowserInstallNag" />
                             <span>Enable enhanced warning for Jellyfin Web browsers</span>
                         </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. Uses the same triggers, exclusions and filters as the playback nag; only how the nag looks in a browser changes. Browser tabs opened before this was switched on need a reload.</div>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. Uses the same triggers, exclusions and filters as the playback nag, the GPU resource guard and the transcode limit; only how their messages look in a browser changes. Browser tabs opened before this was switched on need a reload.</div>
                     </div>
 
                     <div id="browserInstallNagOptions" style="display: none;">
@@ -118,13 +118,13 @@
                         <div class="selectContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagMessage">Message:</label>
                             <textarea id="txtBrowserNagMessage" name="txtBrowserNagMessage" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">The playback trigger reason is listed underneath automatically.</div>
+                            <div class="fieldDescription">The playback trigger reason is listed underneath automatically. GPU refusals and transcode limit blocks use their own Refusal or Blocked Title and Message instead.</div>
                         </div>
 
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagAutoCloseSeconds">Close automatically after (seconds):</label>
                             <input type="number" id="txtBrowserNagAutoCloseSeconds" name="txtBrowserNagAutoCloseSeconds" min="5" max="180" class="emby-input" />
-                            <div class="fieldDescription">5-180 seconds. The countdown pauses while the pointer is over the warning, and the viewer can close it sooner with Continue or Esc.</div>
+                            <div class="fieldDescription">5-180 seconds. The countdown pauses while the pointer is over the warning, and the viewer can close it sooner with Continue (Close on a refusal or block) or Esc.</div>
                         </div>
                     </div>
 
@@ -196,7 +196,7 @@
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitHeader">Blocked Title:</label>
                             <input type="text" id="txtTranscodeLimitHeader" name="txtTranscodeLimitHeader" class="emby-input" />
-                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused.</div>
+                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
                         </div>
 
                         <div class="selectContainer">
@@ -331,7 +331,7 @@
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtGpuGuardDeniedHeader">Refusal Title:</label>
                             <input type="text" id="txtGpuGuardDeniedHeader" name="txtGpuGuardDeniedHeader" class="emby-input" />
-                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused.</div>
+                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
                         </div>
 
                         <div class="selectContainer">

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
@@ -309,26 +310,61 @@ public sealed class TranscodeLimitGuard
             return;
         }
 
+        // An admin who blanks these fields should still get a usable popup.
+        var header = Fallback(config.TranscodeLimitHeader, DefaultDeniedHeader);
+        var text = TranscodeGuardRules.FormatTranscodeLimitMessage(
+            Fallback(config.TranscodeLimitMessage, DefaultDeniedMessage),
+            decision.TranscodeCount,
+            decision.TimeWindowLabel,
+            decision.Threshold);
+
         // Delivery is best effort. A client that cannot show a popup is still refused.
         await _clientMessageService.SendMessageAsync(
             session,
             new MessageCommand
             {
-                // An admin who blanks these fields should still get a usable popup.
-                Header = Fallback(config.TranscodeLimitHeader, DefaultDeniedHeader),
-                Text = TranscodeGuardRules.FormatTranscodeLimitMessage(
-                    Fallback(config.TranscodeLimitMessage, DefaultDeniedMessage),
-                    decision.TranscodeCount,
-                    decision.TimeWindowLabel,
-                    decision.Threshold),
+                Header = header,
+                Text = text,
                 TimeoutMs = config.MessageTimeoutMs
             },
+            BuildBrowserNagArguments(session, config, request, header, text),
             config.UseStickyTranscodeLimitMessages,
             "transcode limit block",
             $"{decision.TranscodeCount} counted transcodes against a limit of {decision.Threshold}",
             config.EnableLogging,
             _logger,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// For Jellyfin Web, adds the install warning to the block's own DisplayMessage. The block
+    /// already tells the viewer to switch clients, and Jellyfin Web's playback error covers the
+    /// toast, so the dialog is where the viewer actually sees it.
+    /// </summary>
+    private Dictionary<string, string>? BuildBrowserNagArguments(
+        SessionInfo session,
+        PluginConfiguration config,
+        TranscodeLimitRequest request,
+        string header,
+        string text)
+    {
+        if (!BrowserNagRules.ShouldUseBrowserNag(session, config))
+        {
+            return null;
+        }
+
+        var nagId = Guid.NewGuid();
+        if (config.EnableLogging)
+        {
+            BestEffort(() => _logger.LogInformation(
+                "Session {SessionId} is Jellyfin Web ({DeviceName}); attaching browser install warning {NagId} to the transcode limit block for user {UserName}",
+                session.Id,
+                session.DeviceName ?? "Unknown",
+                nagId.ToString("N"),
+                session.UserName ?? "Unknown"));
+        }
+
+        return BrowserNagRules.BuildRefusalArguments(config, request.TranscodeReasons, nagId, header, text);
     }
 
     private static string Fallback(string? configured, string defaultText)

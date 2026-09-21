@@ -1,4 +1,5 @@
 using System;
+using MediaBrowser.Model.Session;
 
 namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
@@ -88,6 +89,11 @@ public sealed class GpuTranscodeRequest
     /// Gets or sets the output codec reference-frame count.
     /// </summary>
     public int? OutputRefFrames { get; set; }
+
+    /// <summary>
+    /// Gets or sets Jellyfin's reasons for the transcode, which the browser warning shows the viewer.
+    /// </summary>
+    public TranscodeReason TranscodeReasons { get; set; }
 
     /// <summary>
     /// Gets or sets a stable path identifying duplicate starts for the same FFmpeg job.
