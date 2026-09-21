@@ -11,8 +11,9 @@ namespace Jellyfin.Plugin.TranscodeGuard.Browser;
 
 /// <summary>
 /// Decides which sessions get the browser install warning and builds what the injected script
-/// renders. The warning rides on the playback nag's or GPU refusal's own DisplayMessage as extra
-/// arguments, so Jellyfin Web still shows its normal popup wherever the script is not running.
+/// renders. The warning rides on the playback nag's, GPU refusal's, or transcode limit block's own
+/// DisplayMessage as extra arguments, so Jellyfin Web still shows its normal popup wherever the
+/// script is not running.
 /// </summary>
 internal static class BrowserNagRules
 {
@@ -59,8 +60,8 @@ internal static class BrowserNagRules
         => string.Equals(session?.Client, JellyfinWebClient, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Decides whether a playback nag or GPU refusal should carry the browser warning. Whether the
-    /// message is sent at all is still decided by the feature that sends it.
+    /// Decides whether a playback nag or a refused transcode's message should carry the browser
+    /// warning. Whether the message is sent at all is still decided by the feature that sends it.
     /// </summary>
     /// <param name="session">The session being nagged.</param>
     /// <param name="config">Plugin configuration.</param>
@@ -156,8 +157,9 @@ internal static class BrowserNagRules
     }
 
     /// <summary>
-    /// Builds the install warning for a refused transcode, around the refusal's own title and
-    /// text so the dialog says what the popup it replaces would have said.
+    /// Builds the install warning for a refused transcode (GPU refusal or transcode limit block),
+    /// around the refusal's own title and text so the dialog says what the popup it replaces
+    /// would have said.
     /// </summary>
     /// <param name="config">Plugin configuration; supplies the install link and the countdown.</param>
     /// <param name="transcodeReasons">Jellyfin's reasons for the transcode.</param>

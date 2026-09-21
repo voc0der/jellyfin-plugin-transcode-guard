@@ -71,8 +71,9 @@ title and disappears after about 3.6 seconds, whatever Message Timeout says.
 This setting replaces that toast, for browser sessions only, with a proper
 warning: a centred dialog with your title, message, the trigger reason, and an
 **Install Client** button linking wherever you point it. A browser refused by
-the [GPU resource guard](#gpu-resource-guard) gets the same dialog, carrying the
-refusal's title and message instead; there the toast is usually lost behind
+the [GPU resource guard](#gpu-resource-guard) or blocked by the
+[transcode limit](#transcode-limit) gets the same dialog, carrying that
+refusal's own title and message instead; there the toast is usually lost behind
 Jellyfin Web's own playback error. Since playback has already failed, that
 version has a **Close** button, and its reason line reads "Your browser can't
 play this directly: …" so it isn't mistaken for the cause of the refusal.
@@ -87,17 +88,17 @@ anything else running Jellyfin Web all qualify. Jellyfin Media Player, MPV Shim,
 Android, Android TV, Swiftfin and every other client keep the normal message,
 even the ones that are the web UI inside an app.
 
-**Nothing extra runs.** The warning rides on the playback nag or GPU refusal
-Jellyfin already sends over that session's own connection, so the browser makes
-no extra requests. Only the one browser that is transcoding sees it, not the
-user's other devices. Which playbacks get nagged or refused is still decided
-entirely by those features' own settings, exclusions and filters.
+**Nothing extra runs.** The warning rides on the nag, refusal or block Jellyfin
+already sends over that session's own connection, so the browser makes no extra
+requests. Only the one browser that is transcoding sees it, not the user's other
+devices. Which playbacks get nagged or refused is still decided entirely by
+those features' own settings, exclusions and filters.
 
 | Setting | Does | Default |
 | --- | --- | --- |
 | Enable enhanced warning for Jellyfin Web browsers | Turns it on | Off |
 | Install URL | Where the button goes. Must be a full `http://` or `https://` link; anything else leaves the button out | Empty (no button) |
-| Title / Message | The dialog's text. The trigger reason is added underneath. GPU refusals use the Refusal Title / Refusal Message instead | "Transcoding detected" |
+| Title / Message | The dialog's text. The trigger reason is added underneath. GPU refusals and transcode limit blocks use their own title and message instead | "Transcoding detected" |
 | Close automatically after (seconds) | 5-180. The countdown pauses while the pointer is over the dialog | 60 |
 
 The viewer can close it early with **Continue** (**Close** on a refusal) or Esc,
@@ -147,7 +148,7 @@ and client exclusion are the login nag's. One policy, two points on it.
 | Setting | Does | Default |
 | --- | --- | --- |
 | Transcode Limit | Bad transcodes before refusing | 10 |
-| Blocked Title / Blocked Message | The popup. Supports `{{transcodes}}`, `{{timewindow}}`, `{{limit}}` | "Transcode limit reached" |
+| Blocked Title / Blocked Message | The popup. Supports `{{transcodes}}`, `{{timewindow}}`, `{{limit}}`. Also the text of the [browser install warning](#browser-install-warning) when a browser is blocked | "Transcode limit reached" |
 
 **What it never refuses.** Only what the login nag counts. Direct play, direct
 stream, bitrate-only transcodes, audio-only streams, excluded users, filtered

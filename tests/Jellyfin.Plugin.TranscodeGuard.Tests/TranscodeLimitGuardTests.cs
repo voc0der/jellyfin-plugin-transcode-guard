@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using Jellyfin.Plugin.TranscodeGuard.Limits;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
@@ -58,6 +59,49 @@ public class TranscodeLimitGuardTests
         var sent = Assert.Single(harness.Messages.SentMessages);
         Assert.Equal("Stop", sent.Command.Header);
         Assert.Equal("10 of 10 this week.", sent.Command.Text);
+    }
+
+    [Fact]
+    public async Task RefusalToJellyfinWebCarriesTheBrowserWarningWithTheBlockText()
+    {
+        var config = EnabledConfig(threshold: 10);
+        config.TranscodeLimitHeader = "Stop";
+        config.TranscodeLimitMessage = "{{transcodes}} of {{limit}} this {{timewindow}}.";
+        config.EnableBrowserInstallNag = true;
+        config.BrowserInstallUrl = "https://example.com/client";
+        using var harness = new LimitHarness(config);
+        await harness.RecordBadTranscodesAsync(AliceId, 10);
+
+        Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
+
+        // The box says what the popup it replaces says, with the numbers filled in.
+        var arguments = Assert.Single(harness.Messages.SentExtraArguments);
+        Assert.NotNull(arguments);
+        Assert.Equal(BrowserNagRules.MarkerValue, arguments[BrowserNagRules.MarkerArgument]);
+        Assert.Equal("Stop", arguments[BrowserNagRules.TitleArgument]);
+        Assert.Equal("10 of 10 this week.", arguments[BrowserNagRules.MessageArgument]);
+        Assert.Equal("Video codec not supported", arguments[BrowserNagRules.ReasonArgument]);
+        Assert.Equal("https://example.com/client", arguments[BrowserNagRules.InstallUrlArgument]);
+        Assert.Equal(BrowserNagRules.RefusalDismissLabel, arguments[BrowserNagRules.DismissLabelArgument]);
+        Assert.Equal(BrowserNagRules.RefusalReasonLabel, arguments[BrowserNagRules.ReasonLabelArgument]);
+    }
+
+    [Theory]
+    [InlineData("Jellyfin Web", false)]
+    [InlineData("Jellyfin Media Player", true)]
+    [InlineData("Jellyfin Android", true)]
+    public async Task RefusalToOtherClientsOrWithTheFeatureOffIsOnlyThePlainPopup(string client, bool featureOn)
+    {
+        var config = EnabledConfig(threshold: 10);
+        config.EnableBrowserInstallNag = featureOn;
+        using var harness = new LimitHarness(config);
+        harness.Session.Client = client;
+        await harness.RecordBadTranscodesAsync(AliceId, 10);
+
+        Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
+
+        Assert.Single(harness.Messages.SentMessages);
+        Assert.Null(Assert.Single(harness.Messages.SentExtraArguments));
     }
 
     [Fact]
@@ -299,6 +343,8 @@ public class TranscodeLimitGuardTests
         }
 
         public RecordingClientMessageService Messages { get; }
+
+        public SessionInfo Session => _session;
 
         public TranscodeLimitGuard Guard { get; }
 
