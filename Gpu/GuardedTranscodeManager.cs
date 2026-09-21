@@ -64,11 +64,13 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
         // GPU's state, and refusing here means no VRAM reservation is spent on a job that is not
         // allowed to run anyway.
         var limitDecision = TranscodeLimitDecision.Allowed;
+        TranscodeLimitRequest? limitRequest = null;
 
         try
         {
+            limitRequest = BuildLimitRequest(state, userId);
             limitDecision = await _limitGuard.AssessAsync(
-                BuildLimitRequest(state, userId),
+                limitRequest,
                 cancellationTokenSource.Token).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not OperationCanceledException)
@@ -153,6 +155,14 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
             {
                 _ = reservation.MarkLaunched(processId, request);
             }
+
+            // Client playback reports also arrive after failed launches. Grant continuation
+            // only after the server actually started this playback, never on a refusal/failure.
+            if (limitRequest != null)
+            {
+                BestEffort(() => _limitGuard.RecordTranscodeStarted(limitRequest));
+            }
+
             return job;
         }
         catch
@@ -182,6 +192,7 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
             IsLiveStream = state.MediaSource?.IsInfiniteStream == true
                 || !string.IsNullOrEmpty(state.MediaSource?.LiveStreamId),
             DeviceId = request?.DeviceId,
+            PlaySessionId = request?.PlaySessionId,
             UserId = userId,
             ItemId = request?.Id ?? Guid.Empty,
             ItemName = state.MediaSource?.Name

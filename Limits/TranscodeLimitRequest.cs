@@ -39,6 +39,11 @@ public sealed class TranscodeLimitRequest
     public string? DeviceId { get; set; }
 
     /// <summary>
+    /// Gets or sets the playback session ID, shared by segment requests and seeks in one playback.
+    /// </summary>
+    public string? PlaySessionId { get; set; }
+
+    /// <summary>
     /// Gets or sets the authenticated user, or <see cref="Guid.Empty"/> when unknown.
     /// </summary>
     public Guid UserId { get; set; }
