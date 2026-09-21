@@ -161,6 +161,9 @@ FFmpeg job every time you seek, and the event recorded for the current
 playback is often what pushes its own owner over the line. Without an
 exemption, the film that hit the limit would be the one killed mid-scene. It
 isn't: the limit applies to the next thing a user starts.
+The exemption requires a successful FFmpeg launch for the same playback session.
+A client's "now playing" report does not grant it, so retries after a refusal
+remain blocked even if the client reports that the video has started.
 
 **A refusal costs nothing.** It returns HTTP 403, starts no FFmpeg process, and
 records no event — so being refused can't push someone further over. Raise the

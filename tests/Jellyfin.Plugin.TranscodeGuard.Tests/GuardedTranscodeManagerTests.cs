@@ -423,6 +423,137 @@ public class GuardedTranscodeManagerTests
         Assert.Single(messages.SentMessages);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartFfMpeg_LimitRefusalSurvivesPlaybackReportsAndRepeatedFallbacks(bool replacePlaySessionId)
+    {
+        using var store = new TestEventStore();
+        await store.SeedBadTranscodesAsync(AliceId, 1);
+        var config = new PluginConfiguration { EnableTranscodeLimit = true, TranscodeLimitThreshold = 1 };
+        var messages = new RecordingClientMessageService();
+        var session = TestSessions.Create("session-2", "device-2", AliceId);
+        messages.AddSession(session);
+        var now = DateTimeOffset.UtcNow;
+        var (decorator, inner) = CreateLimitDecorator(config, store.Store, messages, () => now);
+        var state = CreateHardwareVideoState();
+        state.Request.TranscodeReasons = nameof(TranscodeReason.VideoCodecNotSupported);
+
+        for (var attempt = 0; attempt < 6; attempt++)
+        {
+            using var cts = new CancellationTokenSource();
+            await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
+                state, $"/config/transcodes/retry-{attempt}.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts));
+
+            // A failed start is still reported by the browser. Fallbacks can obtain a new
+            // playback ID, and later requests can outlive the count and notification caches.
+            session.NowPlayingItem = new BaseItemDto { Id = MovieTwoId };
+            if (replacePlaySessionId)
+            {
+                state.Request.PlaySessionId = $"retry-{attempt}";
+            }
+
+            now = now.AddSeconds(attempt < 2 ? 1 : 10);
+        }
+
+        Assert.Equal(0, inner.StartFfMpegCallCount);
+        Assert.Equal(4, messages.SentMessages.Count);
+
+        // Raising the policy limit releases the playback without restarting the server.
+        config.TranscodeLimitThreshold = 2;
+        using var allowedCts = new CancellationTokenSource();
+        await decorator.StartFfMpeg(
+            state, "/config/transcodes/allowed.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, allowedCts);
+        Assert.Equal(1, inner.StartFfMpegCallCount);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_SuccessfulPlaybackCanSeekAtTheLimitButCannotGrantANewPlaybackAdmission()
+    {
+        using var store = new TestEventStore();
+        var config = new PluginConfiguration { EnableTranscodeLimit = true, TranscodeLimitThreshold = 1 };
+        var messages = new RecordingClientMessageService();
+        var session = TestSessions.Create("session-2", "device-2", AliceId);
+        messages.AddSession(session);
+        var now = DateTimeOffset.UtcNow;
+        var (decorator, inner) = CreateLimitDecorator(config, store.Store, messages, () => now);
+        var state = CreateHardwareVideoState();
+        state.Request.TranscodeReasons = nameof(TranscodeReason.VideoCodecNotSupported);
+        using var cts = new CancellationTokenSource();
+
+        await decorator.StartFfMpeg(
+            state, "/config/transcodes/start.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+        await store.SeedBadTranscodesAsync(AliceId, 1);
+        session.NowPlayingItem = new BaseItemDto { Id = MovieTwoId };
+        now = now.AddHours(4);
+
+        await decorator.StartFfMpeg(
+            state, "/config/transcodes/seek.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+        Assert.Equal(2, inner.StartFfMpegCallCount);
+        Assert.Empty(messages.SentMessages);
+
+        state.Request.PlaySessionId = "new-playback";
+        await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
+            state, "/config/transcodes/replay.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts));
+        Assert.Equal(2, inner.StartFfMpegCallCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartFfMpeg_FailedOrGpuRefusedLaunchDoesNotGrantContinuation(bool gpuRefusal)
+    {
+        using var store = new TestEventStore();
+        var config = new PluginConfiguration
+        {
+            EnableTranscodeLimit = true,
+            TranscodeLimitThreshold = 1,
+            EnableGpuResourceGuard = gpuRefusal
+        };
+        var messages = new RecordingClientMessageService();
+        var session = TestSessions.Create("session-2", "device-2", AliceId);
+        messages.AddSession(session);
+        var now = DateTimeOffset.UtcNow;
+        var (decorator, inner) = CreateLimitDecorator(config, store.Store, messages, () => now);
+        inner.StartFailuresRemaining = 1;
+        var state = CreateHardwareVideoState();
+        state.Request.TranscodeReasons = nameof(TranscodeReason.VideoCodecNotSupported);
+        using var cts = new CancellationTokenSource();
+
+        var firstFailure = await Record.ExceptionAsync(() => decorator.StartFfMpeg(
+            state, "/config/transcodes/start.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts));
+        Assert.IsType(gpuRefusal ? typeof(SecurityException) : typeof(InvalidOperationException), firstFailure);
+
+        config.EnableGpuResourceGuard = false;
+        await store.SeedBadTranscodesAsync(AliceId, 1);
+        session.NowPlayingItem = new BaseItemDto { Id = MovieTwoId };
+        now = now.AddSeconds(10);
+        var launchAttempts = inner.StartFfMpegCallCount;
+
+        var refusal = await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
+            state, "/config/transcodes/retry.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts));
+        Assert.Contains("configured limit of 1", refusal.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(launchAttempts, inner.StartFfMpegCallCount);
+    }
+
+    private static (GuardedTranscodeManager Decorator, SpyTranscodeManager Inner) CreateLimitDecorator(
+        PluginConfiguration config,
+        TranscodeEventStore store,
+        RecordingClientMessageService messages,
+        Func<DateTimeOffset> clock)
+    {
+        var inner = new SpyTranscodeManager();
+        var decorator = new GuardedTranscodeManager(
+            inner,
+            new GpuResourceGuard(
+                FakeGpuMemoryProvider.WithFreeMiB(10), messages, NullLogger<GpuResourceGuard>.Instance, () => config),
+            new TranscodeLimitGuard(
+                store, messages, NullLogger<TranscodeLimitGuard>.Instance, () => config,
+                TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(3), clock),
+            NullLogger<GuardedTranscodeManager>.Instance);
+        return (decorator, inner);
+    }
+
     [Fact]
     public async Task StartFfMpeg_LetsABitrateOnlyTranscodeThroughForTheSameOverLimitUser()
     {

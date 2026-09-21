@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.TranscodeGuard.Browser;
@@ -62,6 +63,10 @@ public sealed class TranscodeLimitGuard
     private readonly Dictionary<string, DateTimeOffset> _lastRefusalUtc = new(StringComparer.Ordinal);
     private readonly object _countCacheLock = new();
     private readonly object _suppressionLock = new();
+
+    // Keep only the latest successful launch per live session. Weak keys release the record
+    // when Jellyfin retires a session, without expiring a long-running or paused playback.
+    private readonly ConditionalWeakTable<SessionInfo, StartedPlayback> _startedPlaybacks = new();
 
     public TranscodeLimitGuard(
         TranscodeEventStore eventStore,
@@ -180,14 +185,11 @@ public sealed class TranscodeLimitGuard
             return TranscodeLimitDecision.Allowed;
         }
 
-        // A stream the user is already watching is a continuation, not a new transcode. Jellyfin
-        // starts a fresh FFmpeg job for a seek, and the event recorded for this very playback is
-        // what can push its owner over the limit - so without this, the movie that reached the
-        // limit is the one cut off, mid-scene, and it cannot be resumed for the rest of the
-        // window. The limit stops the next thing a user starts, never the thing they are watching.
-        // The session only carries a now-playing item once playback has been reported, which is
-        // exactly the case this must spare: a first launch has not reported one yet.
-        if (request.ItemId != Guid.Empty && session?.NowPlayingItem?.Id == request.ItemId)
+        // A seek in an admitted playback must survive the event that pushes its owner over the
+        // limit. NowPlayingItem alone is not proof of admission: Jellyfin Web reports playback
+        // start even after player.play fails, then retries the refused stream. Only a successful
+        // server-side launch for this exact playback can earn the continuation exemption.
+        if (IsStartedPlayback(request, session))
         {
             return TranscodeLimitDecision.Allowed;
         }
@@ -219,6 +221,44 @@ public sealed class TranscodeLimitGuard
         }
 
         return decision;
+    }
+
+    /// <summary>
+    /// Records a successful FFmpeg launch so seeks in that playback can continue at the limit.
+    /// Must only be called after both guards and the underlying transcode manager succeed.
+    /// </summary>
+    internal void RecordTranscodeStarted(TranscodeLimitRequest request)
+    {
+        if (!request.IsVideoRequest
+            || request.UserId == Guid.Empty
+            || request.ItemId == Guid.Empty
+            || string.IsNullOrEmpty(request.DeviceId)
+            || string.IsNullOrEmpty(request.PlaySessionId))
+        {
+            return;
+        }
+
+        var session = TryResolveSession(request);
+        if (session == null || !string.Equals(session.DeviceId, request.DeviceId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _startedPlaybacks.AddOrUpdate(session, new StartedPlayback(
+            request.UserId,
+            request.ItemId,
+            request.DeviceId,
+            request.PlaySessionId));
+    }
+
+    private bool IsStartedPlayback(TranscodeLimitRequest request, SessionInfo? session)
+    {
+        return session?.NowPlayingItem?.Id == request.ItemId
+            && _startedPlaybacks.TryGetValue(session, out var started)
+            && started.UserId == request.UserId
+            && started.ItemId == request.ItemId
+            && string.Equals(started.DeviceId, request.DeviceId, StringComparison.Ordinal)
+            && string.Equals(started.PlaySessionId, request.PlaySessionId, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -450,6 +490,8 @@ public sealed class TranscodeLimitGuard
             // allowance if a custom provider throws from ILogger.Log.
         }
     }
+
+    private sealed record StartedPlayback(Guid UserId, Guid ItemId, string DeviceId, string PlaySessionId);
 
     private readonly struct CachedCount
     {

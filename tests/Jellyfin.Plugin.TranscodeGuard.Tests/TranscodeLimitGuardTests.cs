@@ -221,15 +221,60 @@ public class TranscodeLimitGuardTests
     {
         // The event recorded for the current movie is what puts its owner over. Seeking starts a
         // fresh FFmpeg job, and refusing that would cut off the very film that reached the limit.
-        using var harness = new LimitHarness(EnabledConfig(threshold: 5));
-        await harness.RecordBadTranscodesAsync(AliceId, 5);
+        var now = DateTimeOffset.UtcNow;
+        using var harness = new LimitHarness(EnabledConfig(threshold: 1), () => now);
+        Assert.True((await harness.AssessAsync(Request())).IsAdmitted);
+        harness.Guard.RecordTranscodeStarted(Request());
+        await harness.RecordBadTranscodesAsync(AliceId, 1);
         harness.SetNowPlaying(MovieId);
+        now = now.AddHours(4);
 
         Assert.True((await harness.AssessAsync(Request())).IsAdmitted);
         Assert.Empty(harness.Messages.SentMessages);
 
         // Anything else they start is still refused.
         Assert.False((await harness.AssessAsync(Request(itemId: Guid.NewGuid()))).IsAdmitted);
+    }
+
+    [Theory]
+    [InlineData("play-2")]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task ANewOrUnidentifiedPlaybackOfTheSameItemDoesNotInheritAdmission(string? playSessionId)
+    {
+        using var harness = new LimitHarness(EnabledConfig(threshold: 1));
+        harness.Guard.RecordTranscodeStarted(Request());
+        await harness.RecordBadTranscodesAsync(AliceId, 1);
+        harness.SetNowPlaying(MovieId);
+
+        Assert.False((await harness.AssessAsync(Request(playSessionId: playSessionId))).IsAdmitted);
+    }
+
+    [Fact]
+    public async Task AReplacementSessionDoesNotInheritAdmission()
+    {
+        using var harness = new LimitHarness(EnabledConfig(threshold: 1));
+        harness.Guard.RecordTranscodeStarted(Request());
+        await harness.RecordBadTranscodesAsync(AliceId, 1);
+
+        var replacement = TestSessions.Create(harness.Session.Id, DeviceId, AliceId);
+        replacement.NowPlayingItem = new BaseItemDto { Id = MovieId };
+        harness.Messages.AddSession(replacement);
+
+        Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
+    }
+
+    [Fact]
+    public async Task AUserSwitchDoesNotInheritAdmission()
+    {
+        using var harness = new LimitHarness(EnabledConfig(threshold: 1));
+        harness.Guard.RecordTranscodeStarted(Request());
+        var otherUserId = Guid.NewGuid();
+        await harness.RecordBadTranscodesAsync(otherUserId, 1);
+        harness.Session.UserId = otherUserId;
+        harness.SetNowPlaying(MovieId);
+
+        Assert.False((await harness.AssessAsync(Request(userId: otherUserId))).IsAdmitted);
     }
 
     [Fact]
@@ -239,6 +284,35 @@ public class TranscodeLimitGuardTests
         await harness.RecordBadTranscodesAsync(AliceId, 5);
 
         // No now-playing item: the client has requested the stream but not started it.
+        Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
+    }
+
+    [Fact]
+    public async Task RefusedPlaybackCannotBecomeAContinuationByReportingNowPlaying()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var harness = new LimitHarness(EnabledConfig(threshold: 1), () => now);
+        await harness.RecordBadTranscodesAsync(AliceId, 1);
+
+        Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
+
+        // Jellyfin Web reports playback start even when its first player.play call fails.
+        // Its subsequent fallbacks must still be refused, including after both caches expire.
+        harness.SetNowPlaying(MovieId);
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            now = now.AddSeconds(10);
+            Assert.False((await harness.AssessAsync(Request(playSessionId: $"retry-{attempt}"))).IsAdmitted);
+        }
+    }
+
+    [Fact]
+    public async Task NowPlayingReportedBeforeTheFirstRequestDoesNotExemptIt()
+    {
+        using var harness = new LimitHarness(EnabledConfig(threshold: 1));
+        await harness.RecordBadTranscodesAsync(AliceId, 1);
+        harness.SetNowPlaying(MovieId);
+
         Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
     }
 
@@ -305,7 +379,8 @@ public class TranscodeLimitGuardTests
         TranscodeReason reasons = TranscodeReason.VideoCodecNotSupported,
         bool isVideoRequest = true,
         bool isLiveStream = false,
-        Guid? itemId = null)
+        Guid? itemId = null,
+        string? playSessionId = "play-1")
     {
         return new TranscodeLimitRequest
         {
@@ -313,6 +388,7 @@ public class TranscodeLimitGuardTests
             TranscodeReasons = reasons,
             IsLiveStream = isLiveStream,
             DeviceId = DeviceId,
+            PlaySessionId = playSessionId,
             UserId = userId ?? AliceId,
             ItemId = itemId ?? MovieId,
             ItemName = "Movie"
