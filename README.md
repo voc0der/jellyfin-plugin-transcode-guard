@@ -60,6 +60,13 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 </p>
 
 <p align="center">
+  <img src="docs/images/transcode-guard-simultaneous-transcodes.png" alt="Transcode Guard simultaneous transcode settings with a global maximum and per-user maximums in the Jellyfin dashboard" width="880" />
+</p>
+<p align="center">
+  <em>How many transcodes each user can run at once, with per-user overrides</em>
+</p>
+
+<p align="center">
   <img src="docs/images/transcode-guard-gpu-guard.png" alt="Transcode Guard GPU resource guard settings in the Jellyfin dashboard" width="880" />
 </p>
 <p align="center">
