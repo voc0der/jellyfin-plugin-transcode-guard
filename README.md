@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/github/v/release/voc0der/jellyfin-plugin-transcode-guard?label=stable%20release" alt="Stable release version" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/tree/main/tests">
-    <img src="https://img.shields.io/badge/coverage-73%25-yellowgreen" alt="Code coverage percentage" />
+    <img src="https://img.shields.io/badge/coverage-74%25-yellowgreen" alt="Code coverage percentage" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/issues">
     <img src="https://img.shields.io/github/issues/voc0der/jellyfin-plugin-transcode-guard?color=DAA520" alt="Open issues" />
