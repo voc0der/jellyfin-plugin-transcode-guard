@@ -85,6 +85,40 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool UseStickyTranscodeLimitMessages { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the number of video transcodes one user can run at
+    /// the same time is capped. Defaults to off so upgrading the plugin cannot start failing
+    /// anyone's playback, and even when on nothing is capped until a maximum is set.
+    /// </summary>
+    public bool EnableConcurrentTranscodeLimit { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets how many video transcodes every user may run at once, counted per device.
+    /// A value below 1 means no global maximum. A user's own entry in
+    /// <see cref="UserConcurrentTranscodeLimits"/> wins over this, higher or lower.
+    /// </summary>
+    public int MaxConcurrentTranscodes { get; set; } = 0;
+
+    /// <summary>
+    /// Gets or sets the per-user maximums. A user without an entry, or with one below 1, falls
+    /// back to <see cref="MaxConcurrentTranscodes"/>.
+    /// </summary>
+    public UserConcurrentTranscodeLimit[] UserConcurrentTranscodeLimits { get; set; } = Array.Empty<UserConcurrentTranscodeLimit>();
+
+    /// <summary>
+    /// Gets or sets the popup title shown to a client whose transcode was refused for being one
+    /// too many at once.
+    /// </summary>
+    public string ConcurrentTranscodeLimitHeader { get; set; } = "Too many transcodes at once";
+
+    /// <summary>
+    /// Gets or sets the popup body shown to a client whose transcode was refused for being one too
+    /// many at once. Supports <c>{{active}}</c> and <c>{{limit}}</c>.
+    /// </summary>
+    public string ConcurrentTranscodeLimitMessage { get; set; } = "You're already transcoding {{active}} video(s) on other devices, and this server allows {{limit}} at a time. Stop one, or switch to a client that can direct play (mpv, VLC, or Jellyfin Media Player), to watch this.";
+
+    public bool UseStickyConcurrentTranscodeLimitMessages { get; set; } = false;
+
+    /// <summary>
     /// Gets or sets a value indicating whether Jellyfin Web browser sessions get the install
     /// warning modal on top of the playback nag. Needs the JavaScript Injector plugin; without it
     /// browsers keep getting the normal popup. Off by default so upgrading changes nothing.
@@ -211,4 +245,11 @@ public class ReasonMessageOverride
     public string ReasonName { get; set; } = string.Empty;
 
     public string Message { get; set; } = string.Empty;
+}
+
+public class UserConcurrentTranscodeLimit
+{
+    public string UserId { get; set; } = string.Empty;
+
+    public int MaxTranscodes { get; set; }
 }

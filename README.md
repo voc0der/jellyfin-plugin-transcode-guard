@@ -77,10 +77,11 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 
 - Sends a playback nag when Jellyfin reports selected `TranscodeReasons`.
 - Ignores bitrate-only transcodes, so users lowering quality for bandwidth do not get warned.
-- Can turn the playback nag, GPU refusals and transcode limit blocks into a full warning with an install link for Jellyfin Web browser sessions (needs the JavaScript Injector plugin); every other client keeps the normal message.
+- Can turn the playback nag, GPU refusals and both transcode limits' blocks into a full warning with an install link for Jellyfin Web browser sessions (needs the JavaScript Injector plugin); every other client keeps the normal message.
 - Can exclude Live TV channel streams from playback nags and login nag history.
 - Can send a login nag when a user keeps hitting bad transcodes over the last week or month.
 - Can refuse a user's next transcode outright once that same count passes a second, higher limit, so heavy transcoders are warned before they are stopped.
+- Can cap how many videos each user transcodes at the same time, with a global maximum and per-user maximums that override it.
 - Lets you exclude users from all nags.
 - Includes a live session monitor in the plugin settings page.
 - Can broadcast an optional Message of the Day to users at login, with its own user exclusions and client filters.

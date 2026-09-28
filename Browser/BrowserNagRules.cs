@@ -11,7 +11,7 @@ namespace Jellyfin.Plugin.TranscodeGuard.Browser;
 
 /// <summary>
 /// Decides which sessions get the browser install warning and builds what the injected script
-/// renders. The warning rides on the playback nag's, GPU refusal's, or transcode limit block's own
+/// renders. The warning rides on the playback nag's, GPU refusal's, or a transcode limit block's own
 /// DisplayMessage as extra arguments, so Jellyfin Web still shows its normal popup wherever the
 /// script is not running.
 /// </summary>
@@ -157,7 +157,7 @@ internal static class BrowserNagRules
     }
 
     /// <summary>
-    /// Builds the install warning for a refused transcode (GPU refusal or transcode limit block),
+    /// Builds the install warning for a refused transcode (GPU refusal or either transcode limit's block),
     /// around the refusal's own title and text so the dialog says what the popup it replaces
     /// would have said.
     /// </summary>

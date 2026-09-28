@@ -14,6 +14,7 @@ off across upgrades.
 | Browser users miss the nag or need a link to a better client | [Browser install warning](#browser-install-warning) | Off |
 | A few users transcode constantly and don't notice the nags | [Login nag](#login-nag) | **On** |
 | Nagging isn't working and you want it to actually stop | [Transcode limit](#transcode-limit) | Off |
+| One account is transcoding on several screens at once | [Simultaneous transcode limit](#simultaneous-transcode-limit) | Off |
 | Paused streams hold VRAM for hours | [Paused transcode reaper](#paused-transcode-reaper) | Off |
 | Big jobs OOM the GPU and take the working ones down | [GPU resource guard](#gpu-resource-guard) | Off |
 | You need to tell everyone something at login | [Message of the Day](#message-of-the-day) | Off |
@@ -72,7 +73,8 @@ This setting replaces that toast, for browser sessions only, with a proper
 warning: a centred dialog with your title, message, the trigger reason, and an
 **Install Client** button linking wherever you point it. A browser refused by
 the [GPU resource guard](#gpu-resource-guard) or blocked by the
-[transcode limit](#transcode-limit) gets the same dialog, carrying that
+[transcode limit](#transcode-limit) or the
+[simultaneous transcode limit](#simultaneous-transcode-limit) gets the same dialog, carrying that
 refusal's own title and message instead; there the toast is usually lost behind
 Jellyfin Web's own playback error. Since playback has already failed, that
 version has a **Close** button, and its reason line reads "Your browser can't
@@ -175,6 +177,56 @@ or two more through, and an edited threshold applies within seconds rather than
 instantly.
 
 Setting the limit below 1 disables it rather than blocking everything.
+
+---
+
+## Simultaneous transcode limit
+
+Caps how many videos one user can have transcoding at the same time. Once their
+other devices are at the maximum, the next transcode is refused before FFmpeg
+starts, with a popup saying why.
+
+This one is about load, not nagging. A shared login, or one person with the TV,
+the phone and the laptop all going, can hold several encoder sessions at once;
+this makes the answer "this many, then stop".
+
+| Setting | Does | Default |
+| --- | --- | --- |
+| Limit simultaneous transcodes per user | Turns it on | Off |
+| Global Maximum | How many transcodes every user may run at once | Empty (no limit) |
+| Per-User Maximums | One field per user. A value here wins over the global maximum, higher or lower; empty uses the global maximum | Empty |
+| Blocked Title / Blocked Message | The popup. Supports `{{active}}` and `{{limit}}`. Also the text of the [browser install warning](#browser-install-warning) when a browser is blocked | "Too many transcodes at once" |
+
+Switched on with no maximum anywhere, nothing is limited. A per-user maximum
+works without a global one, so you can cap a single account and leave everyone
+else alone — or set a global 2 and give one household account 4.
+
+**What counts.** Every running video transcode, bitrate-only transcodes and Live
+TV included, because they cost the server the same. Direct play, direct stream
+(remux) and audio-only streams are never counted and never refused. The nag's
+user exclusions, client filters and Exclude Live TV don't apply here: to give
+someone more room, give them a higher per-user maximum.
+
+**Counted per device.** A device plays one thing at a time, so its own transcode
+never counts against it. A seek, an audio track change or the next episode
+starts a fresh FFmpeg job on the same device, and replaces that device's
+transcode rather than adding one. Only a different device can be the one that
+goes over. Two tabs in one browser share a device ID, so they count once.
+
+**Counted from the moment it's admitted.** The count comes from the FFmpeg jobs
+the guard let through, not the dashboard's session list, which lags a few
+seconds behind a launch. Two devices pressing play together can't both take
+the last place. A transcode stops counting when its FFmpeg process exits: when
+playback stops, or when Jellyfin has finished transcoding the file ahead of the
+viewer. A paused transcode still holds its encoder, so it still counts — the
+[paused transcode reaper](#paused-transcode-reaper) is the fix for those.
+
+**A refusal costs nothing.** HTTP 403, no FFmpeg process. Stop another stream
+and the next attempt works, with no setting change or restart.
+
+**Lowering a maximum** doesn't stop anything already running. Until the user is
+back under it, a seek in one of those streams is checked like any new start
+and can be refused.
 
 ---
 
@@ -289,6 +341,9 @@ Three separate lists, deliberately not shared:
 Excluding someone from nags also excludes them from the transcode limit — the
 limit enforces the nag's count, so it inherits the nag's exemptions.
 
+The simultaneous transcode limit has no exclusion list. It's a resource cap, and
+a higher per-user maximum is how you give someone more room.
+
 ### Client filters
 
 Case-insensitive substring matching against the client name, one per line or
@@ -306,8 +361,9 @@ the login nag or the transcode limit. The MOTD keeps its own separate pair.
 Off by default. When on, Live TV channel streams don't trigger playback nags,
 don't count toward the login nag, and aren't refused by the transcode limit.
 
-It does **not** apply to the paused transcode reaper — a paused Live TV stream
-holds the same resources as any other and is still reaped.
+It does **not** apply to the paused transcode reaper or the simultaneous
+transcode limit — a Live TV transcode holds the same resources as any other, so
+it is still reaped when paused and still counted when running.
 
 ### Sticky messages
 
@@ -324,7 +380,8 @@ Timeout.
 | --- | --- | --- |
 | `{{transcodes}}` | Login nag, Blocked message | Their count in the window |
 | `{{timewindow}}` | Login nag, Blocked message | "week" or "month" |
-| `{{limit}}` | Blocked message | The configured limit |
+| `{{limit}}` | Blocked messages | The configured limit, or the user's simultaneous maximum |
+| `{{active}}` | Simultaneous blocked message | How many of their other devices are transcoding |
 | `{{minutes}}` | Paused transcode warning | Minutes until the stream is stopped |
 
 ### Logging

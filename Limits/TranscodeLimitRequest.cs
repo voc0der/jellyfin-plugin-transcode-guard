@@ -4,8 +4,9 @@ using MediaBrowser.Model.Session;
 namespace Jellyfin.Plugin.TranscodeGuard.Limits;
 
 /// <summary>
-/// Everything <see cref="TranscodeLimitGuard"/> needs about a transcode Jellyfin is about to
-/// launch, lifted out of <c>StreamState</c> so the policy can be exercised without a live server.
+/// Everything <see cref="TranscodeLimitGuard"/> and <see cref="ConcurrentTranscodeGuard"/> need
+/// about a transcode Jellyfin is about to launch, lifted out of <c>StreamState</c> so the policies
+/// can be exercised without a live server.
 /// </summary>
 public sealed class TranscodeLimitRequest
 {
@@ -14,6 +15,12 @@ public sealed class TranscodeLimitRequest
     /// False for audio-only streams, which the login nag never counts.
     /// </summary>
     public bool IsVideoRequest { get; set; }
+
+    /// <summary>
+    /// Gets or sets Jellyfin's chosen output video codec. "copy" means remux/Direct Stream, which
+    /// is not a video transcode and never counts toward the simultaneous transcode limit.
+    /// </summary>
+    public string? OutputVideoCodec { get; set; }
 
     /// <summary>
     /// Gets or sets Jellyfin's reasons for this transcode. Zero when the client sent none, which
