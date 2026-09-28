@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read  # the release label is read off the merged pull request
 
 env:
   # The Transcode Guard plugin identity. Changing this value creates a new
@@ -41,8 +42,42 @@ jobs:
         name: Jellyfin.Plugin.TranscodeGuard
         path: bin/Release/net10.0/Jellyfin.Plugin.TranscodeGuard.dll
 
-    - name: Generate version and changelog
+    # Landing on main does not release by itself: only a merged pull request that
+    # carries the `release` label does. Anything else - an unlabelled merge, a
+    # direct push - is built above and stops here, and its changes go out with the
+    # next labelled merge.
+    - name: Check for the release label
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      id: gate
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # The pull request whose merge produced this commit. GitHub can take a
+        # moment to associate a fresh merge commit with its pull request, so an
+        # empty answer is retried before it is believed.
+        pr=""
+        for delay in 0 5 10 20; do
+          sleep "$delay"
+          pr=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq 'map(select(.merge_commit_sha == "${{ github.sha }}")) | first // empty')
+          if [ -n "$pr" ]; then
+            break
+          fi
+        done
+
+        if [ -z "$pr" ]; then
+          echo "No merged pull request produced ${{ github.sha }}; not releasing."
+          echo "release=false" >> "$GITHUB_OUTPUT"
+        elif jq -e 'any(.labels[]; .name == "release")' <<< "$pr" > /dev/null; then
+          echo "#$(jq -r .number <<< "$pr") is labelled release; releasing."
+          echo "release=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "#$(jq -r .number <<< "$pr") is not labelled release; not releasing."
+          echo "release=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Generate version and changelog
+      if: steps.gate.outputs.release == 'true'
       id: version
       run: |
         # Get the latest tag, or use 1.0.0.0 if none exists
@@ -88,7 +123,7 @@ jobs:
         cat CHANGELOG.md
 
     - name: Rebuild with version
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: steps.gate.outputs.release == 'true'
       run: |
         VERSION=${{ steps.version.outputs.version }}
         # Strip 'v' prefix for assembly version
@@ -101,7 +136,7 @@ jobs:
           -p:Version="${VERSION_NO_V}"
 
     - name: Package plugin
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: steps.gate.outputs.release == 'true'
       run: |
         VERSION=${{ steps.version.outputs.version }}
         # Strip 'v' prefix for folder name (Jellyfin expects folder without 'v')
@@ -122,7 +157,7 @@ jobs:
         ls -lh "${ZIP_NAME}"
 
     - name: Update manifest.json
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: steps.gate.outputs.release == 'true'
       run: |
         VERSION=${{ steps.version.outputs.version }}
         # Strip 'v' prefix for manifest.json version field (Jellyfin requires semantic version without 'v')
@@ -164,7 +199,7 @@ jobs:
         mv manifest.tmp manifest.json
 
     - name: Commit updated manifest
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: steps.gate.outputs.release == 'true'
       run: |
         git config user.name "voc0der"
         git config user.email "contact@netspace.in"
@@ -177,7 +212,7 @@ jobs:
         git push
 
     - name: Create Release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: steps.gate.outputs.release == 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -190,7 +225,7 @@ jobs:
           "${ZIP_NAME}"
 
     - name: Rebuild centralized plugin repository
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: steps.gate.outputs.release == 'true'
       env:
         GH_TOKEN: ${{ secrets.PLUGIN_REPO_TOKEN }}
       run: |
