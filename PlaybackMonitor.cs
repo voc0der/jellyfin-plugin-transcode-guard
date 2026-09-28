@@ -75,7 +75,7 @@ public class PlaybackMonitor : IHostedService
         if (decorationFailure != null)
         {
             _logger.LogWarning(
-                "GPU resource guard is not installed and will never refuse a transcode on this server ({Reason}). All other Transcode Guard features are unaffected.",
+                "The GPU resource guard, transcode limit and simultaneous transcode limit are not installed and will never refuse a transcode on this server ({Reason}). All other Transcode Guard features are unaffected.",
                 decorationFailure);
         }
 

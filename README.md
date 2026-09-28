@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/github/v/release/voc0der/jellyfin-plugin-transcode-guard?label=stable%20release" alt="Stable release version" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/tree/main/tests">
-    <img src="https://img.shields.io/badge/coverage-73%25-yellowgreen" alt="Code coverage percentage" />
+    <img src="https://img.shields.io/badge/coverage-74%25-yellowgreen" alt="Code coverage percentage" />
   </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/issues">
     <img src="https://img.shields.io/github/issues/voc0der/jellyfin-plugin-transcode-guard?color=DAA520" alt="Open issues" />
@@ -60,6 +60,13 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 </p>
 
 <p align="center">
+  <img src="docs/images/transcode-guard-simultaneous-transcodes.png" alt="Transcode Guard simultaneous transcode settings with a global maximum and per-user maximums in the Jellyfin dashboard" width="880" />
+</p>
+<p align="center">
+  <em>How many transcodes each user can run at once, with per-user overrides</em>
+</p>
+
+<p align="center">
   <img src="docs/images/transcode-guard-gpu-guard.png" alt="Transcode Guard GPU resource guard settings in the Jellyfin dashboard" width="880" />
 </p>
 <p align="center">
@@ -77,10 +84,11 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 
 - Sends a playback nag when Jellyfin reports selected `TranscodeReasons`.
 - Ignores bitrate-only transcodes, so users lowering quality for bandwidth do not get warned.
-- Can turn the playback nag, GPU refusals and transcode limit blocks into a full warning with an install link for Jellyfin Web browser sessions (needs the JavaScript Injector plugin); every other client keeps the normal message.
+- Can turn the playback nag, GPU refusals and both transcode limits' blocks into a full warning with an install link for Jellyfin Web browser sessions (needs the JavaScript Injector plugin); every other client keeps the normal message.
 - Can exclude Live TV channel streams from playback nags and login nag history.
 - Can send a login nag when a user keeps hitting bad transcodes over the last week or month.
 - Can refuse a user's next transcode outright once that same count passes a second, higher limit, so heavy transcoders are warned before they are stopped.
+- Can cap how many videos each user transcodes at the same time, with a global maximum and per-user maximums that override it.
 - Lets you exclude users from all nags.
 - Includes a live session monitor in the plugin settings page.
 - Can broadcast an optional Message of the Day to users at login, with its own user exclusions and client filters.

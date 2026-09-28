@@ -33,6 +33,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // events share its lock rather than racing each other over the same file.
         serviceCollection.AddSingleton<TranscodeEventStore>();
         serviceCollection.AddSingleton<TranscodeLimitGuard>();
+        serviceCollection.AddSingleton<ConcurrentTranscodeGuard>();
         serviceCollection.AddHostedService<PlaybackMonitor>();
         serviceCollection.AddHostedService<PausedTranscodeReaper>();
         serviceCollection.AddHostedService<BrowserScriptRegistrar>();
@@ -41,7 +42,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     }
 
     /// <summary>
-    /// Wraps Jellyfin's <c>ITranscodeManager</c> so the transcode limit and the GPU guard can
+    /// Wraps Jellyfin's <c>ITranscodeManager</c> so the transcode limits and the GPU guard can
     /// refuse a transcode before FFmpeg is launched.
     /// </summary>
     /// <remarks>
@@ -96,6 +97,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
                 (ITranscodeManager)ActivatorUtilities.CreateInstance(provider, implementationType),
                 provider.GetRequiredService<GpuResourceGuard>(),
                 provider.GetRequiredService<TranscodeLimitGuard>(),
+                provider.GetRequiredService<ConcurrentTranscodeGuard>(),
                 provider.GetRequiredService<ILogger<GuardedTranscodeManager>>()),
             lifetime);
 

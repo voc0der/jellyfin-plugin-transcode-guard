@@ -10,8 +10,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.TranscodeGuard.Gpu;
 
 /// <summary>
-/// Wraps Jellyfin's <see cref="ITranscodeManager"/> so the transcode limit and the GPU guard run
-/// immediately before FFmpeg is launched.
+/// Wraps Jellyfin's <see cref="ITranscodeManager"/> so the transcode limit, the simultaneous
+/// transcode limit and the GPU guard run immediately before FFmpeg is launched.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -32,6 +32,7 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
     private readonly ITranscodeManager _inner;
     private readonly GpuResourceGuard _guard;
     private readonly TranscodeLimitGuard _limitGuard;
+    private readonly ConcurrentTranscodeGuard _concurrentGuard;
     private readonly ILogger<GuardedTranscodeManager> _logger;
     private bool _disposed;
 
@@ -39,11 +40,13 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
         ITranscodeManager inner,
         GpuResourceGuard guard,
         TranscodeLimitGuard limitGuard,
+        ConcurrentTranscodeGuard concurrentGuard,
         ILogger<GuardedTranscodeManager> logger)
     {
         _inner = inner;
         _guard = guard;
         _limitGuard = limitGuard;
+        _concurrentGuard = concurrentGuard;
         _logger = logger;
     }
 
@@ -60,9 +63,9 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(cancellationTokenSource);
 
-        // The per-user limit is settled first: it is a policy decision that does not depend on the
-        // GPU's state, and refusing here means no VRAM reservation is spent on a job that is not
-        // allowed to run anyway.
+        // The per-user limits are settled first: they are policy decisions that do not depend on
+        // the GPU's state, and refusing here means no VRAM reservation is spent on a job that is
+        // not allowed to run anyway.
         var limitDecision = TranscodeLimitDecision.Allowed;
         TranscodeLimitRequest? limitRequest = null;
 
@@ -85,6 +88,33 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
             // HTTP 403 rather than a 500 with a stack trace.
             throw new SecurityException(limitDecision.BuildRefusalReason());
         }
+
+        var concurrentDecision = ConcurrentTranscodeDecision.Allowed;
+
+        try
+        {
+            if (limitRequest != null)
+            {
+                concurrentDecision = await _concurrentGuard.AssessAsync(
+                    limitRequest,
+                    cancellationTokenSource.Token).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException && ex is not OperationCanceledException)
+        {
+            // A broken guard must never break playback.
+            BestEffort(() => _logger.LogError(ex, "Simultaneous transcode guard failed; allowing the transcode to proceed"));
+        }
+
+        if (!concurrentDecision.IsAdmitted)
+        {
+            throw new SecurityException(concurrentDecision.BuildRefusalReason());
+        }
+
+        // The slot holds this device's place from here on. Every path that does not launch FFmpeg
+        // - a GPU refusal, cancellation, a failed start - must give it back, or the user's count
+        // would never come down.
+        using var concurrentSlot = concurrentDecision.Slot;
 
         var admitted = true;
         GpuTranscodeRequest? request = null;
@@ -156,6 +186,8 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
                 _ = reservation.MarkLaunched(processId, request);
             }
 
+            concurrentSlot?.MarkLaunched(job);
+
             // Client playback reports also arrive after failed launches. Grant continuation
             // only after the server actually started this playback, never on a refusal/failure.
             if (limitRequest != null)
@@ -188,6 +220,7 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
             // EncodingJobInfo reads TranscodeReasons off Request, so a partially constructed state
             // has none. No reasons reads as a bitrate-driven transcode, which is never refused.
             TranscodeReasons = request == null ? 0 : state.TranscodeReasons,
+            OutputVideoCodec = state.OutputVideoCodec,
             // Both signals, because either alone is narrower than the Live TV the counter skips.
             IsLiveStream = state.MediaSource?.IsInfiniteStream == true
                 || !string.IsNullOrEmpty(state.MediaSource?.LiveStreamId),

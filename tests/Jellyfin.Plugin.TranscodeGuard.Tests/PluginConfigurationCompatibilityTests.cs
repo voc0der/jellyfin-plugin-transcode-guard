@@ -130,6 +130,84 @@ public class PluginConfigurationCompatibilityTests
     }
 
     [Fact]
+    public void SimultaneousTranscodeLimitIsOptInWithNoMaximumSet()
+    {
+        var config = new PluginConfiguration();
+
+        // Off, and even switched on it would limit nothing until a maximum is chosen.
+        Assert.False(config.EnableConcurrentTranscodeLimit);
+        Assert.Equal(0, config.MaxConcurrentTranscodes);
+        Assert.Empty(config.UserConcurrentTranscodeLimits);
+        Assert.False(config.UseStickyConcurrentTranscodeLimitMessages);
+        Assert.Contains("{{active}}", config.ConcurrentTranscodeLimitMessage, StringComparison.Ordinal);
+        Assert.Contains("{{limit}}", config.ConcurrentTranscodeLimitMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SimultaneousTranscodeLimitSettingsRoundTripThroughXml()
+    {
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+        var config = new PluginConfiguration
+        {
+            EnableConcurrentTranscodeLimit = true,
+            MaxConcurrentTranscodes = 2,
+            UserConcurrentTranscodeLimits = new[]
+            {
+                new UserConcurrentTranscodeLimit { UserId = "4e6ea05698214e7c940d2af1806f1f8e", MaxTranscodes = 4 },
+                new UserConcurrentTranscodeLimit { UserId = "9f1b3e6c8a0d47259c4e7b2f5a8d0c31", MaxTranscodes = 1 }
+            },
+            ConcurrentTranscodeLimitHeader = "Busy",
+            ConcurrentTranscodeLimitMessage = "{{active}} of {{limit}}",
+            UseStickyConcurrentTranscodeLimitMessages = true
+        };
+
+        using var writer = new StringWriter();
+        serializer.Serialize(writer, config);
+
+        using var reader = new StringReader(writer.ToString());
+        var roundTripped = Assert.IsType<PluginConfiguration>(serializer.Deserialize(reader));
+
+        Assert.True(roundTripped.EnableConcurrentTranscodeLimit);
+        Assert.Equal(2, roundTripped.MaxConcurrentTranscodes);
+        Assert.Collection(
+            roundTripped.UserConcurrentTranscodeLimits,
+            entry =>
+            {
+                Assert.Equal("4e6ea05698214e7c940d2af1806f1f8e", entry.UserId);
+                Assert.Equal(4, entry.MaxTranscodes);
+            },
+            entry =>
+            {
+                Assert.Equal("9f1b3e6c8a0d47259c4e7b2f5a8d0c31", entry.UserId);
+                Assert.Equal(1, entry.MaxTranscodes);
+            });
+        Assert.Equal("Busy", roundTripped.ConcurrentTranscodeLimitHeader);
+        Assert.Equal("{{active}} of {{limit}}", roundTripped.ConcurrentTranscodeLimitMessage);
+        Assert.True(roundTripped.UseStickyConcurrentTranscodeLimitMessages);
+    }
+
+    [Fact]
+    public void ConfigurationSavedBeforeTheSimultaneousLimitExistedLoadsWithItSwitchedOff()
+    {
+        const string OlderXml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <PluginConfiguration>
+              <EnableTranscodeLimit>true</EnableTranscodeLimit>
+              <TranscodeLimitThreshold>12</TranscodeLimitThreshold>
+            </PluginConfiguration>
+            """;
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+
+        using var reader = new StringReader(OlderXml);
+        var config = Assert.IsType<PluginConfiguration>(serializer.Deserialize(reader));
+
+        Assert.False(config.EnableConcurrentTranscodeLimit);
+        Assert.Equal(0, config.MaxConcurrentTranscodes);
+        Assert.Empty(config.UserConcurrentTranscodeLimits);
+        Assert.Equal(12, config.TranscodeLimitThreshold);
+    }
+
+    [Fact]
     public void PausedTranscodeReaperIsOptInAndDefaultsTo25Minutes()
     {
         var config = new PluginConfiguration();

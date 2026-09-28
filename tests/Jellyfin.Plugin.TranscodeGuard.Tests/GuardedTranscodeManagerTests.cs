@@ -143,6 +143,18 @@ public class GuardedTranscodeManagerTests
             new RecordingClientMessageService());
     }
 
+    /// <summary>
+    /// A simultaneous transcode guard that is switched off, for the tests about the other guards.
+    /// </summary>
+    /// <returns>The guard.</returns>
+    private static ConcurrentTranscodeGuard DisabledConcurrentGuard()
+    {
+        return new ConcurrentTranscodeGuard(
+            new RecordingClientMessageService(),
+            NullLogger<ConcurrentTranscodeGuard>.Instance,
+            () => new PluginConfiguration());
+    }
+
     private static TranscodeLimitGuard CreateLimitGuard(
         PluginConfiguration config,
         TranscodeEventStore store,
@@ -174,7 +186,7 @@ public class GuardedTranscodeManagerTests
             () => config);
 
         var inner = new SpyTranscodeManager();
-        var decorator = new GuardedTranscodeManager(inner, guard, DisabledLimitGuard(), NullLogger<GuardedTranscodeManager>.Instance);
+        var decorator = new GuardedTranscodeManager(inner, guard, DisabledLimitGuard(), DisabledConcurrentGuard(), NullLogger<GuardedTranscodeManager>.Instance);
 
         return (decorator, inner, messages);
     }
@@ -225,6 +237,7 @@ public class GuardedTranscodeManagerTests
             new SpyTranscodeManager(),
             guard,
             DisabledLimitGuard(),
+            DisabledConcurrentGuard(),
             NullLogger<GuardedTranscodeManager>.Instance);
 
         var state = CreateHardwareVideoState();
@@ -309,7 +322,7 @@ public class GuardedTranscodeManagerTests
             () => new PluginConfiguration { EnableGpuResourceGuard = true });
 
         var inner = new SpyTranscodeManager();
-        var decorator = new GuardedTranscodeManager(inner, guard, DisabledLimitGuard(), NullLogger<GuardedTranscodeManager>.Instance);
+        var decorator = new GuardedTranscodeManager(inner, guard, DisabledLimitGuard(), DisabledConcurrentGuard(), NullLogger<GuardedTranscodeManager>.Instance);
         using var cts = new CancellationTokenSource();
 
         await decorator.StartFfMpeg(
@@ -365,6 +378,7 @@ public class GuardedTranscodeManagerTests
             inner,
             guard,
             DisabledLimitGuard(),
+            DisabledConcurrentGuard(),
             new ThrowingLogger<GuardedTranscodeManager>());
         using var cts = new CancellationTokenSource();
 
@@ -404,6 +418,7 @@ public class GuardedTranscodeManagerTests
                 NullLogger<GpuResourceGuard>.Instance,
                 () => config),
             CreateLimitGuard(config, store.Store, messages),
+            DisabledConcurrentGuard(),
             NullLogger<GuardedTranscodeManager>.Instance);
 
         var state = CreateHardwareVideoState();
@@ -550,6 +565,7 @@ public class GuardedTranscodeManagerTests
             new TranscodeLimitGuard(
                 store, messages, NullLogger<TranscodeLimitGuard>.Instance, () => config,
                 TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(3), clock),
+            DisabledConcurrentGuard(),
             NullLogger<GuardedTranscodeManager>.Instance);
         return (decorator, inner);
     }
@@ -578,6 +594,7 @@ public class GuardedTranscodeManagerTests
                 NullLogger<GpuResourceGuard>.Instance,
                 () => config),
             CreateLimitGuard(config, store.Store, messages),
+            DisabledConcurrentGuard(),
             NullLogger<GuardedTranscodeManager>.Instance);
 
         // Jellyfin reports no reason when the client is simply capping bitrate.
@@ -594,6 +611,143 @@ public class GuardedTranscodeManagerTests
 
         Assert.Equal(1, inner.StartFfMpegCallCount);
         Assert.Empty(messages.SentMessages);
+    }
+
+    private static (GuardedTranscodeManager Decorator, SpyTranscodeManager Inner, RecordingClientMessageService Messages)
+        CreateConcurrencyDecorator(PluginConfiguration config, int freeMiB = 100000)
+    {
+        var messages = new RecordingClientMessageService();
+        messages.AddSession(TestSessions.Create("session-1", "device-1", AliceId));
+        messages.AddSession(TestSessions.Create("session-2", "device-2", AliceId));
+
+        var inner = new SpyTranscodeManager();
+        var decorator = new GuardedTranscodeManager(
+            inner,
+            new GpuResourceGuard(
+                FakeGpuMemoryProvider.WithFreeMiB(freeMiB), messages, NullLogger<GpuResourceGuard>.Instance, () => config),
+            DisabledLimitGuard(),
+            new ConcurrentTranscodeGuard(messages, NullLogger<ConcurrentTranscodeGuard>.Instance, () => config),
+            NullLogger<GuardedTranscodeManager>.Instance);
+        return (decorator, inner, messages);
+    }
+
+    private static StreamState CreateHardwareVideoStateOn(string deviceId)
+    {
+        var state = CreateHardwareVideoState();
+        state.Request.DeviceId = deviceId;
+        state.Request.PlaySessionId = "play-" + deviceId;
+        return state;
+    }
+
+    private static PluginConfiguration OneTranscodeAtATime(bool gpuGuardEnabled = false)
+    {
+        return new PluginConfiguration
+        {
+            EnableConcurrentTranscodeLimit = true,
+            MaxConcurrentTranscodes = 1,
+            EnableGpuResourceGuard = gpuGuardEnabled
+        };
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_RefusesADeviceOverTheSimultaneousLimitBeforeFfmpegStarts()
+    {
+        var (decorator, inner, messages) = CreateConcurrencyDecorator(OneTranscodeAtATime());
+        using var cts = new CancellationTokenSource();
+
+        await decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-1"), "/config/transcodes/a.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+
+        var refusal = await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-2"), "/config/transcodes/b.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts));
+
+        Assert.Equal("MediaBrowser.Controller.Net.SecurityException", refusal.GetType().FullName);
+        Assert.Contains("limit of 1 at a time", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(1, inner.StartFfMpegCallCount);
+        Assert.Equal("session-2", Assert.Single(messages.SentMessages).Session.Id);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_ASeekOnTheTranscodingDeviceIsNeverRefusedByTheSimultaneousLimit()
+    {
+        var (decorator, inner, _) = CreateConcurrencyDecorator(OneTranscodeAtATime());
+        using var cts = new CancellationTokenSource();
+
+        await decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-1"), "/config/transcodes/a.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+        await decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-1"), "/config/transcodes/a-seek.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+
+        Assert.Equal(2, inner.StartFfMpegCallCount);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_ALaunchedTranscodeHoldsItsPlaceUntilFfmpegExits()
+    {
+        var (decorator, inner, _) = CreateConcurrencyDecorator(OneTranscodeAtATime());
+        using var cts = new CancellationTokenSource();
+
+        var job = await decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-1"), "/config/transcodes/a.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+        await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-2"), "/config/transcodes/b.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts));
+
+        job.HasExited = true;
+
+        await decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-2"), "/config/transcodes/b.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+        Assert.Equal(2, inner.StartFfMpegCallCount);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_AGpuRefusalGivesTheSimultaneousPlaceBack()
+    {
+        var config = OneTranscodeAtATime(gpuGuardEnabled: true);
+        var (decorator, inner, _) = CreateConcurrencyDecorator(config, freeMiB: 700);
+        using var cts = new CancellationTokenSource();
+
+        var refusal = await Assert.ThrowsAsync<SecurityException>(() => decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-1"), "/config/transcodes/a.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts));
+        Assert.Contains("VRAM budget", refusal.Message, StringComparison.Ordinal);
+
+        // Device 1 never started, so it must not be holding the user's only place.
+        config.EnableGpuResourceGuard = false;
+        await decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-2"), "/config/transcodes/b.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+
+        Assert.Equal(1, inner.StartFfMpegCallCount);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_AFailedStartGivesTheSimultaneousPlaceBack()
+    {
+        var (decorator, inner, _) = CreateConcurrencyDecorator(OneTranscodeAtATime());
+        inner.StartFailuresRemaining = 1;
+        using var cts = new CancellationTokenSource();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-1"), "/config/transcodes/a.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts));
+
+        await decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-2"), "/config/transcodes/b.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+
+        Assert.Equal(2, inner.StartFfMpegCallCount);
+    }
+
+    [Fact]
+    public async Task StartFfMpeg_RemuxIsNeverCountedByTheSimultaneousLimit()
+    {
+        var (decorator, inner, _) = CreateConcurrencyDecorator(OneTranscodeAtATime());
+        using var cts = new CancellationTokenSource();
+
+        var remux = CreateHardwareVideoStateOn("device-1");
+        remux.OutputVideoCodec = "copy";
+        await decorator.StartFfMpeg(
+            remux, "/config/transcodes/a.m3u8", "-i \"/media/movie.mkv\" -codec:v:0 copy", AliceId, TranscodingJobType.Hls, cts);
+        await decorator.StartFfMpeg(
+            CreateHardwareVideoStateOn("device-2"), "/config/transcodes/b.m3u8", CudaNvencArguments, AliceId, TranscodingJobType.Hls, cts);
+
+        Assert.Equal(2, inner.StartFfMpegCallCount);
     }
 
     [Fact]
@@ -657,6 +811,7 @@ public class GuardedTranscodeManagerTests
             NullLogger<GpuResourceGuard>.Instance,
             () => new PluginConfiguration()));
         services.AddSingleton(DisabledLimitGuard());
+        services.AddSingleton(DisabledConcurrentGuard());
         services.AddSingleton<ILogger<GuardedTranscodeManager>>(NullLogger<GuardedTranscodeManager>.Instance);
         return services;
     }

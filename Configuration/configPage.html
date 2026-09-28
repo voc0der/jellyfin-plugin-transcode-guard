@@ -87,8 +87,8 @@
 
                     <h2>Browser Install Warning</h2>
                     <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Turns the playback nag, GPU resource guard refusals and transcode limit blocks into
-                        a full warning with an install link, for Jellyfin Web browser sessions only. Native Jellyfin clients (Jellyfin Media Player, MPV Shim,
+                        Turns the playback nag, GPU resource guard refusals, and transcode limit and
+                        simultaneous transcode blocks into a full warning with an install link, for Jellyfin Web browser sessions only. Native Jellyfin clients (Jellyfin Media Player, MPV Shim,
                         Android, Android TV, Swiftfin and others) keep getting the normal Transcode Guard
                         message. Requires the <strong>JavaScript Injector</strong> plugin; without it,
                         browsers get the normal message too. Jellyfin Web still shows its own short popup
@@ -100,7 +100,7 @@
                             <input type="checkbox" is="emby-checkbox" id="chkEnableBrowserInstallNag" name="chkEnableBrowserInstallNag" />
                             <span>Enable enhanced warning for Jellyfin Web browsers</span>
                         </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. Uses the same triggers, exclusions and filters as the playback nag, the GPU resource guard and the transcode limit; only how their messages look in a browser changes. Browser tabs opened before this was switched on need a reload.</div>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. Uses the same triggers, exclusions and filters as the playback nag, the GPU resource guard and the transcode limits; only how their messages look in a browser changes. Browser tabs opened before this was switched on need a reload.</div>
                     </div>
 
                     <div id="browserInstallNagOptions" style="display: none;">
@@ -118,7 +118,7 @@
                         <div class="selectContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagMessage">Message:</label>
                             <textarea id="txtBrowserNagMessage" name="txtBrowserNagMessage" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">The playback trigger reason is listed underneath automatically. GPU refusals and transcode limit blocks use their own Refusal or Blocked Title and Message instead.</div>
+                            <div class="fieldDescription">The playback trigger reason is listed underneath automatically. GPU refusals, and transcode limit and simultaneous transcode blocks, use their own Refusal or Blocked Title and Message instead.</div>
                         </div>
 
                         <div class="inputContainer">
@@ -288,6 +288,59 @@
                             <label class="inputLabel inputLabelUnfocused" for="txtMotdExcludedClientPatterns">Exclude Matching Clients (MOTD):</label>
                             <textarea id="txtMotdExcludedClientPatterns" name="txtMotdExcludedClientPatterns" rows="3" class="emby-input"></textarea>
                             <div class="fieldDescription">Optional. Matching clients never receive the MOTD. Excluded matches always win over includes.</div>
+                        </div>
+                    </div>
+
+                    <h2>Simultaneous Transcodes</h2>
+                    <div class="fieldDescription" style="margin-bottom: 12px;">
+                        Caps how many videos one user can have transcoding at the same time. Once their other
+                        devices are at the maximum, the next transcode is refused before FFmpeg starts, and the
+                        user is shown the message below. Every video transcode counts, bitrate-only and Live TV
+                        included; direct play, direct stream, and audio are never counted or refused. Each device
+                        counts once, so a seek or the next episode on the same device replaces its transcode
+                        rather than adding one. The user exclusions and client filters above do not apply here:
+                        give a user their own, higher maximum instead.
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="chkEnableConcurrentTranscodeLimit" name="chkEnableConcurrentTranscodeLimit" />
+                            <span>Limit simultaneous transcodes per user</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Off by default. Nothing is limited until a global or per-user maximum is set below.</div>
+                    </div>
+
+                    <div id="concurrentTranscodeLimitOptions" style="display: none;">
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtMaxConcurrentTranscodes">Global Maximum:</label>
+                            <input type="number" id="txtMaxConcurrentTranscodes" name="txtMaxConcurrentTranscodes" min="1" max="100" class="emby-input" placeholder="No limit" />
+                            <div class="fieldDescription">How many transcodes each user may run at once. Leave empty for no global maximum.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <div class="inputLabel" style="margin-bottom: 8px;">Per-User Maximums:</div>
+                            <div id="concurrentTranscodeUserLimitList"></div>
+                            <div class="fieldDescription">A user's own maximum wins over the global one, higher or lower. Leave a user empty to use the global maximum.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtConcurrentTranscodeLimitHeader">Blocked Title:</label>
+                            <input type="text" id="txtConcurrentTranscodeLimitHeader" name="txtConcurrentTranscodeLimitHeader" class="emby-input" />
+                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtConcurrentTranscodeLimitMessage">Blocked Message:</label>
+                            <textarea id="txtConcurrentTranscodeLimitMessage" name="txtConcurrentTranscodeLimitMessage" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Shown when a transcode is refused. Use {{active}} for how many of their other devices are transcoding and {{limit}} for their maximum.</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyConcurrentTranscodeLimitMessages" name="chkUseStickyConcurrentTranscodeLimitMessages" />
+                                <span>Sticky Messages</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
                         </div>
                     </div>
 
@@ -871,6 +924,101 @@
                 }
             };
 
+            // Keeps the simultaneous transcode block collapsed unless the feature is switched on, and
+            // renders one maximum field per user.
+            var ConcurrentTranscodeLimitSection = {
+                initialized: false,
+                usersLoaded: false,
+
+                init: function() {
+                    if (this.initialized) {
+                        return;
+                    }
+
+                    document.getElementById('chkEnableConcurrentTranscodeLimit').addEventListener('change', this.updateVisibility);
+                    document.getElementById('txtMaxConcurrentTranscodes').addEventListener('input', this.updatePlaceholders.bind(this));
+                    this.initialized = true;
+                },
+
+                updateVisibility: function() {
+                    var enabled = document.getElementById('chkEnableConcurrentTranscodeLimit').checked;
+                    document.getElementById('concurrentTranscodeLimitOptions').style.display = enabled ? 'block' : 'none';
+                },
+
+                // Blank, non-numeric and below 1 all mean "no maximum" and are saved as 0: a maximum
+                // of 0 would refuse every transcode, which is never what an admin means.
+                readMaximum: function(input) {
+                    var parsed = parseInt(input.value, 10);
+                    return isNaN(parsed) || parsed < 1 ? 0 : parsed;
+                },
+
+                formatMaximum: function(value) {
+                    return typeof value === 'number' && value >= 1 ? String(value) : '';
+                },
+
+                // An empty per-user field inherits the global maximum, so it says what it inherits.
+                updatePlaceholders: function() {
+                    var globalMaximum = this.readMaximum(document.getElementById('txtMaxConcurrentTranscodes'));
+                    var placeholder = globalMaximum >= 1 ? 'Global (' + globalMaximum + ')' : 'No limit';
+                    document.querySelectorAll('#concurrentTranscodeUserLimitList input[data-user-id]').forEach(function(input) {
+                        input.placeholder = placeholder;
+                    });
+                },
+
+                load: function(config) {
+                    var section = this;
+                    var list = document.getElementById('concurrentTranscodeUserLimitList');
+                    var savedMaximums = {};
+
+                    document.getElementById('txtMaxConcurrentTranscodes').value = section.formatMaximum(config.MaxConcurrentTranscodes);
+                    (Array.isArray(config.UserConcurrentTranscodeLimits) ? config.UserConcurrentTranscodeLimits : []).forEach(function(entry) {
+                        var key = entry ? LiveSessionMonitor.normalizeId(entry.UserId) : '';
+                        if (key) {
+                            savedMaximums[key] = entry.MaxTranscodes;
+                        }
+                    });
+
+                    section.usersLoaded = false;
+                    ApiClient.getUsers().then(function(users) {
+                        var listHtml = '';
+                        (users || []).forEach(function(user) {
+                            var key = LiveSessionMonitor.normalizeId(user.Id);
+                            var fieldId = 'txtConcurrentUserMaximum_' + key;
+                            listHtml += '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">';
+                            listHtml += '<label for="' + escapeHtml(fieldId) + '" style="flex: 1 1 auto;">' + escapeHtml(user.Name) + '</label>';
+                            listHtml += '<input type="number" id="' + escapeHtml(fieldId) + '" class="emby-input" min="1" max="100" style="flex: 0 0 9em; width: 9em;" data-user-id="' + escapeHtml(user.Id) + '" value="' + section.formatMaximum(savedMaximums[key]) + '" />';
+                            listHtml += '</div>';
+                        });
+
+                        list.innerHTML = listHtml;
+                        section.usersLoaded = true;
+                        section.updatePlaceholders();
+                    }).catch(function(error) {
+                        console.error('Failed to load users for per-user transcode maximums:', error);
+                        list.innerHTML = '<div class="fieldDescription">Users could not be loaded. Saved per-user maximums are kept unchanged.</div>';
+                    });
+                },
+
+                // Until the user list has rendered, the saved per-user maximums are passed through
+                // untouched, so a failed or slow user lookup cannot wipe them on save.
+                readUserMaximums: function(saved) {
+                    if (!this.usersLoaded) {
+                        return Array.isArray(saved) ? saved : [];
+                    }
+
+                    var section = this;
+                    var maximums = [];
+                    document.querySelectorAll('#concurrentTranscodeUserLimitList input[data-user-id]').forEach(function(input) {
+                        var maximum = section.readMaximum(input);
+                        if (maximum >= 1) {
+                            maximums.push({ UserId: input.getAttribute('data-user-id'), MaxTranscodes: maximum });
+                        }
+                    });
+
+                    return maximums;
+                }
+            };
+
             // Keeps the browser install warning block collapsed unless the feature is switched on.
             var BrowserInstallNagSection = {
                 initialized: false,
@@ -1258,6 +1406,7 @@
                 MotdUserExclusionManager.init();
                 MotdSection.init();
                 TranscodeLimitSection.init();
+                ConcurrentTranscodeLimitSection.init();
                 BrowserInstallNagSection.init();
                 GpuGuardSection.init();
                 PausedTranscodeUserExclusionManager.init();
@@ -1281,6 +1430,11 @@
                     document.getElementById('txtTranscodeLimitHeader').value = config.TranscodeLimitHeader || '';
                     document.getElementById('txtTranscodeLimitMessage').value = config.TranscodeLimitMessage || '';
                     document.getElementById('chkUseStickyTranscodeLimitMessages').checked = config.UseStickyTranscodeLimitMessages === true;
+                    document.getElementById('chkEnableConcurrentTranscodeLimit').checked = config.EnableConcurrentTranscodeLimit === true;
+                    document.getElementById('txtConcurrentTranscodeLimitHeader').value = config.ConcurrentTranscodeLimitHeader || '';
+                    document.getElementById('txtConcurrentTranscodeLimitMessage').value = config.ConcurrentTranscodeLimitMessage || '';
+                    document.getElementById('chkUseStickyConcurrentTranscodeLimitMessages').checked = config.UseStickyConcurrentTranscodeLimitMessages === true;
+                    ConcurrentTranscodeLimitSection.load(config);
                     document.getElementById('chkEnableBrowserInstallNag').checked = config.EnableBrowserInstallNag === true;
                     document.getElementById('txtBrowserInstallUrl').value = config.BrowserInstallUrl || '';
                     document.getElementById('txtBrowserNagTitle').value = config.BrowserNagTitle || '';
@@ -1306,6 +1460,7 @@
                     document.getElementById('chkUseStickyPausedTranscodeMessages').checked = config.UseStickyPausedTranscodeMessages === true;
                     document.getElementById('chkReapPausedDirectPlay').checked = config.ReapPausedDirectPlay === true;
                     TranscodeLimitSection.updateVisibility();
+                    ConcurrentTranscodeLimitSection.updateVisibility();
                     BrowserInstallNagSection.updateVisibility();
                     MotdSection.updateVisibility();
                     GpuGuardSection.updateVisibility();
@@ -1347,6 +1502,12 @@
                     config.TranscodeLimitHeader = document.getElementById('txtTranscodeLimitHeader').value;
                     config.TranscodeLimitMessage = document.getElementById('txtTranscodeLimitMessage').value;
                     config.UseStickyTranscodeLimitMessages = document.getElementById('chkUseStickyTranscodeLimitMessages').checked;
+                    config.EnableConcurrentTranscodeLimit = document.getElementById('chkEnableConcurrentTranscodeLimit').checked;
+                    config.MaxConcurrentTranscodes = ConcurrentTranscodeLimitSection.readMaximum(document.getElementById('txtMaxConcurrentTranscodes'));
+                    config.UserConcurrentTranscodeLimits = ConcurrentTranscodeLimitSection.readUserMaximums(config.UserConcurrentTranscodeLimits);
+                    config.ConcurrentTranscodeLimitHeader = document.getElementById('txtConcurrentTranscodeLimitHeader').value;
+                    config.ConcurrentTranscodeLimitMessage = document.getElementById('txtConcurrentTranscodeLimitMessage').value;
+                    config.UseStickyConcurrentTranscodeLimitMessages = document.getElementById('chkUseStickyConcurrentTranscodeLimitMessages').checked;
                     config.EnableBrowserInstallNag = document.getElementById('chkEnableBrowserInstallNag').checked;
                     config.BrowserInstallUrl = browserInstallUrl;
                     config.BrowserNagTitle = document.getElementById('txtBrowserNagTitle').value;

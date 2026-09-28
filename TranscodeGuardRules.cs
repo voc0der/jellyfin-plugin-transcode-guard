@@ -198,4 +198,11 @@ internal static class TranscodeGuardRules
         return FormatLoginNagMessage(template, badTranscodeCount, timeWindowLabel)
             .Replace("{{limit}}", limit.ToString(), StringComparison.Ordinal);
     }
+
+    internal static string FormatConcurrentTranscodeLimitMessage(string template, int activeTranscodes, int limit)
+    {
+        return template
+            .Replace("{{active}}", activeTranscodes.ToString(), StringComparison.Ordinal)
+            .Replace("{{limit}}", limit.ToString(), StringComparison.Ordinal);
+    }
 }
