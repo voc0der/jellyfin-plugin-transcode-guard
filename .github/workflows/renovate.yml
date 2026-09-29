@@ -1,0 +1,50 @@
+name: renovate
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  # Scheduled runs can start hours late, and Renovate only merges while it is running. So
+  # it also runs when CI finishes on one of its branches, to merge a PR that just went
+  # green, and after every push to main, to rebase the PRs that push left behind.
+  push:
+    branches: [main]
+  workflow_run:
+    # Every workflow that runs on pull requests, since Renovate merges only once all of them
+    # pass. A workflow renamed without updating this list stops triggering a run, silently.
+    workflows:
+      - Build and Release
+      - CodeQL
+      - Lint
+    types: [completed]
+    branches: ['renovate/**']
+  workflow_dispatch:
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    # A pull request from a fork can name its branch renovate/*, so only branches in this
+    # repository count.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # A GitHub App token rather than GITHUB_TOKEN: pull requests opened with GITHUB_TOKEN
+      # do not trigger workflows, so no checks would run and nothing could auto-merge.
+      - name: Get app token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
+      - name: Renovate
+        uses: renovatebot/github-action@v46.3.3
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_ONBOARDING: 'false'
