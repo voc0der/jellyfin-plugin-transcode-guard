@@ -11,8 +11,8 @@
   packageRules: [
     {
       // Nobody reviews these before they merge, so a compromised publish gets a few days
-      // to be caught and pulled first. Security fixes still come from Dependabot, which
-      // does not wait.
+      // to be caught and pulled first. Security fixes don't wait: Renovate opens them from
+      // the repository's Dependabot alerts as soon as an alert appears.
       matchUpdateTypes: ['minor', 'patch', 'pin', 'digest'],
       automerge: true,
       minimumReleaseAge: '3 days',
