@@ -193,21 +193,21 @@ public class ClientMessageServiceTests
             NullLogger.Instance,
             CancellationToken.None);
 
-        await bothDelaysScheduled.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        var sent = await initialSend.WaitAsync(TimeSpan.FromSeconds(1));
+        await bothDelaysScheduled.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        var sent = await initialSend.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         Assert.True(sent);
         Assert.Equal(new[] { 4000 }, timeoutValues);
         Assert.Equal(new[] { TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(6) }, scheduledDelays);
         Assert.Equal(15000, originalCommand.TimeoutMs);
 
         threeSecondGate.TrySetResult();
-        await secondSendCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await secondSendCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         Assert.Equal(2, timeoutValues.Count);
         Assert.False(thirdSendCompleted.Task.IsCompleted);
 
         sixSecondGate.TrySetResult();
-        await thirdSendCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        await thirdSendCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(new[] { 4000, 4000, 4000 }, timeoutValues);
         Assert.Equal(10000, MessageDeliveryPolicy.GetEffectiveVisibilityDurationMs(true, 15000));
@@ -249,7 +249,7 @@ public class ClientMessageServiceTests
             CancellationToken.None));
 
         delayGate.TrySetResult();
-        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(new[] { "old sticky", "new normal" }, sentTexts);
     }
@@ -284,7 +284,7 @@ public class ClientMessageServiceTests
         liveSession.AddController(new ActiveSessionController());
         delayGate.TrySetResult();
 
-        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         Assert.Equal(1, sendCount);
     }
 
@@ -314,7 +314,7 @@ public class ClientMessageServiceTests
             NullLogger.Instance,
             CancellationToken.None));
 
-        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         Assert.Equal(3, sendCount);
     }
 
@@ -345,7 +345,7 @@ public class ClientMessageServiceTests
 
         service.CancelPendingMessages(session, "test");
         delayGate.TrySetResult();
-        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(1, sendCount);
     }
@@ -377,7 +377,7 @@ public class ClientMessageServiceTests
 
         service.CancelPendingMessages(session, "playback nag");
         delayGate.TrySetResult();
-        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(3, sendCount);
     }
@@ -411,7 +411,7 @@ public class ClientMessageServiceTests
 
         applicationStopping.Cancel();
         delayGate.TrySetResult();
-        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(1, sendCount);
     }
@@ -482,7 +482,7 @@ public class ClientMessageServiceTests
             false,
             NullLogger.Instance,
             CancellationToken.None));
-        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.WaitForPendingMessagesAsync().WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(3, sends.Count);
         Assert.All(sends, send =>
