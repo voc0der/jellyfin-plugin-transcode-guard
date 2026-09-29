@@ -1,0 +1,28 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended', 'group:allNonMajor'],
+  // main has no branch protection, so GitHub's auto-merge is unavailable. Renovate merges
+  // on its own next run, and only once every check on the PR has passed.
+  platformAutomerge: false,
+  // Majors wait on the Dependency Dashboard issue until approved there.
+  major: {
+    dependencyDashboardApproval: true,
+  },
+  packageRules: [
+    {
+      // Nobody reviews these before they merge, so a compromised publish gets a few days
+      // to be caught and pulled first. Security fixes still come from Dependabot, which
+      // does not wait.
+      matchUpdateTypes: ['minor', 'patch', 'pin', 'digest'],
+      automerge: true,
+      minimumReleaseAge: '3 days',
+    },
+    {
+      // The Jellyfin packages must match each other, and their version is the server this
+      // plugin is built against, so they share one PR and never merge unattended.
+      matchPackageNames: ['Jellyfin.*'],
+      groupName: 'Jellyfin packages',
+      automerge: false,
+    },
+  ],
+}
