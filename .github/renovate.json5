@@ -27,6 +27,9 @@
       matchPackageNames: ['Jellyfin.*'],
       groupName: 'Jellyfin packages',
       automerge: false,
+      // No PR until it's ticked under Pending Approval on the Dependency Dashboard, so the
+      // plugin moves to a newer server's API when that's chosen, not when it's released.
+      dependencyDashboardApproval: true,
     },
   ],
 }
