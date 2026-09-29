@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 
 /// <summary>
@@ -6,7 +8,10 @@ namespace Jellyfin.Plugin.TranscodeGuard.Tests;
 /// </summary>
 public sealed class UnixFactAttribute : FactAttribute
 {
-    public UnixFactAttribute()
+    public UnixFactAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (OperatingSystem.IsWindows())
         {
