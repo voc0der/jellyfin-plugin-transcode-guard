@@ -50,4 +50,4 @@ dotnet format style --verify-no-changes --severity warn
 
 ## LLM Disclosure
 
-This project uses LLM-assisted development (Claude). Contributions generated with AI assistance are welcome, but please review and test all code before submitting.
+This project uses LLM-assisted development. Contributions generated with AI assistance are welcome, but please review and test all code before submitting.
