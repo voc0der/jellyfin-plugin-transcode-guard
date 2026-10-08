@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.53",
+        "changelog": "## What's Changed\n\n- docs(screenshots): one shot per settings tab (5cfff61)\n- test(config): drive the settings page in a real Jellyfin (35bb583)\n- feat(config): split the settings page into tabs (6021500)\n- chore(deps): update renovatebot/github-action action to v46.3.7 (#70) (93821a6)\n- chore(deps): update renovatebot/github-action action to v46.3.6 (#69) (60813ad)\n- chore(deps): update renovatebot/github-action action to v46.3.5 (#68) (dd04348)\n- docs(contributing): stop naming a specific AI in the LLM disclosure (1098321)\n- chore(deps): move the tests to xunit.v3 (7f98d11)\n- chore(deps): hold Jellyfin updates for approval on the Dependency Dashboard (21f28a7)\n- chore(deps): check osv.dev and Dependabot alerts for vulnerabilities (66e79e2)\n- chore(deps): note that security fixes now come from Renovate (d6ceed5)\n- chore(deps): update renovatebot/github-action action to v46.3.4 (#60) (e5fd123)\n- chore(deps): move dependency updates from Dependabot to Renovate (a3fc5dd)\n- docs(readme): add a Jellyfin version badge (af9c525)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.52...v1.0.1.53\n",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/download/v1.0.1.53/Transcode_Guard_v1.0.1.53.zip",
+        "checksum": "c4b855850a187ea23c45334363dcd888",
+        "timestamp": "2026-10-08T22:44:25Z"
+      },
+      {
         "version": "1.0.1.52",
         "changelog": "## What's Changed\n\n- docs(readme): coverage badge 73% -> 74% (454ac31)\n- docs(screenshots): add the simultaneous transcodes shot (bde1eae)\n- feat(limits): cap how many videos each user transcodes at once (29a5eb9)\n- chore(ci): release only pull requests labelled release (9b7f678)\n- chore: Bump coverlet.collector from 10.0.1 to 10.1.0 (07f9f2a)\n- chore(deps): Bump github/codeql-action from 4.38.1 to 4.38.2 (b0a85ac)\n- chore(deps): Bump github/codeql-action from 4.38.0 to 4.38.1 (5f1e65d)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.51...v1.0.1.52\n",
         "targetAbi": "12.0.0.0",
