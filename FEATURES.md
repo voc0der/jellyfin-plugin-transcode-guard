@@ -1,6 +1,7 @@
 # Transcode Guard Features
 
-Every setting lives in one place: **Dashboard → Plugins → Transcode Guard**.
+Every setting lives in one place: **Dashboard → Plugins → Transcode Guard**, with
+one tab per feature. Save sends every tab at once, whichever tab you press it on.
 
 The two nag features are on out of the box and only send messages. Everything
 that can interrupt or refuse playback is off until you turn it on, and stays
@@ -320,9 +321,11 @@ display both.
 
 ## Live session monitor
 
-On the settings page, under the configuration. Shows the sessions currently
+The **Live Sessions** tab of the settings page. Shows the sessions currently
 matching your rules, so you can confirm a filter does what you expected without
-tailing the server log. Refreshes on a timer, or on demand.
+tailing the server log. Refreshes every 15 seconds while the tab is open, or on
+demand, and looks nothing up on the other tabs. It reads your saved settings, so
+save before checking a change.
 
 ---
 
@@ -332,11 +335,11 @@ tailing the server log. Refreshes on a timer, or on demand.
 
 Three separate lists, deliberately not shared:
 
-| List | Covers |
-| --- | --- |
-| **Manage Excluded Users** | Playback nags, login nags, and the transcode limit |
-| **Manage Excluded Users (MOTD)** | The MOTD only |
-| **Manage Excluded Users (Paused Transcodes)** | The reaper only |
+| List | Tab | Covers |
+| --- | --- | --- |
+| **Manage Excluded Users** | Playback | Playback nags, login nags, and the transcode limit |
+| **Manage Excluded Users (MOTD)** | MOTD | The MOTD only |
+| **Manage Excluded Users (Paused Transcodes)** | Paused Reaper | The reaper only |
 
 Excluding someone from nags also excludes them from the transcode limit — the
 limit enforces the nag's count, so it inherits the nag's exemptions.
@@ -346,8 +349,9 @@ a higher per-user maximum is how you give someone more room.
 
 ### Client filters
 
-Case-insensitive substring matching against the client name, one per line or
-comma-separated. `browser` matches "Jellyfin Web (browser)".
+On the Playback tab. Case-insensitive substring matching against the client
+name, one per line or comma-separated. `browser` matches "Jellyfin Web
+(browser)".
 
 - Empty include list means every client is eligible.
 - A non-empty include list means only matching clients are.

@@ -134,4 +134,5 @@ Copy `bin/Release/net10.0/Jellyfin.Plugin.TranscodeGuard.dll` into a versioned p
 
 ## Configuration
 
-Open **Dashboard** → **Plugins** → **Transcode Guard**.
+Open **Dashboard** → **Plugins** → **Transcode Guard**. Each feature has its own tab, and Save
+saves every tab at once.
