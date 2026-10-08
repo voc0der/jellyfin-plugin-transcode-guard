@@ -1,0 +1,83 @@
+name: Settings page
+
+# Drives the settings page in a real Jellyfin, with this commit's build of the plugin installed,
+# and checks that every tab, button and Save still works. A page whose Save does nothing builds,
+# loads and passes every unit test, so nothing else here would notice.
+#
+# Only for changes that can affect the page: its markup and script, the configuration class it
+# loads and saves, and the harness itself.
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'Configuration/**'
+      - 'tests/config-page/**'
+      - '.github/workflows/config-page.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'Configuration/**'
+      - 'tests/config-page/**'
+      - '.github/workflows/config-page.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+
+    # Locally the suite takes about a minute, server boot included; CI adds installing the browser
+    # and pulling the Jellyfin image. The bound is for a server that never comes up.
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: tests/config-page
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Setup Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        cache: npm
+        cache-dependency-path: tests/config-page/package-lock.json
+
+    - name: Install the harness
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+
+    # The image is read out of the harness rather than written here, so the two cannot disagree
+    # about which Jellyfin the page is checked against. Pulled up front so a slow registry shows
+    # up as this step's time, not as a test that looks hung.
+    - name: Pull the Jellyfin image
+      run: |
+        image=$(grep -oP "JELLYFIN_IMAGE \?\? '\K[^']+" harness/jellyfin.mjs)
+        if [ -z "$image" ]; then
+          echo "harness/jellyfin.mjs names no Jellyfin image." >&2
+          exit 1
+        fi
+        docker pull --quiet "$image"
+
+    - name: Run the harness
+      run: npx playwright test
+
+    - name: Keep the evidence
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: settings-page-harness
+        path: |
+          tests/config-page/playwright-report/
+          tests/config-page/test-results/
+        if-no-files-found: ignore

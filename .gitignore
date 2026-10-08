@@ -39,3 +39,10 @@ bld/
 
 # Keep the README
 !README.md
+
+# Settings page harness (tests/config-page)
+tests/config-page/node_modules/
+tests/config-page/test-results/
+tests/config-page/playwright-report/
+tests/config-page/.auth/
+tests/config-page/.build/

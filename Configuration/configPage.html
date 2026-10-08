@@ -6,470 +6,558 @@
 </head>
 <body>
     <div id="TranscodeGuardConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+        <style>
+            /* Scoped to this page: Jellyfin keeps only what is inside the data-role="page" element and
+               shares one document between every dashboard page. The colours come from the active
+               theme, with the dark theme's values as the fallback for servers that do not set them. */
+            #TranscodeGuardConfigPage .transcodeGuardTabs {
+                display: flex;
+                flex-wrap: wrap;
+                margin: 0 0 1.5em;
+                border-bottom: 1px solid var(--jf-palette-divider, hsla(0, 0%, 100%, 0.12));
+            }
+
+            #TranscodeGuardConfigPage .transcodeGuardTab {
+                margin: 0 0 -1px;
+                padding: 0.8em 1.1em;
+                border: 0;
+                border-bottom: 2px solid transparent;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                font-weight: 500;
+                cursor: pointer;
+                opacity: 0.7;
+            }
+
+            #TranscodeGuardConfigPage .transcodeGuardTab:hover {
+                opacity: 1;
+            }
+
+            #TranscodeGuardConfigPage .transcodeGuardTab[aria-selected="true"] {
+                border-bottom-color: currentColor;
+                color: var(--jf-palette-primary-main, #00a4dc);
+                opacity: 1;
+            }
+
+            #TranscodeGuardConfigPage .transcodeGuardTab:focus-visible {
+                outline: 2px solid var(--jf-palette-primary-main, #00a4dc);
+                outline-offset: -2px;
+            }
+
+            #TranscodeGuardConfigPage [role="tabpanel"][hidden] {
+                display: none;
+            }
+
+            #TranscodeGuardConfigPage .transcodeGuardModal {
+                margin: 50px auto;
+                max-width: 600px;
+                padding: 20px;
+                border-radius: 4px;
+                background: var(--jf-palette-background-paper, #202020);
+            }
+        </style>
         <div data-role="content">
             <div class="content-primary">
-                <form id="TranscodeGuardConfigForm">
-                    <div class="selectContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtNagMessage">Nag Message:</label>
-                        <textarea id="txtNagMessage" name="txtNagMessage" rows="4" class="emby-input"></textarea>
-                        <div class="fieldDescription">Message to display to users who are transcoding due to unsupported formats.</div>
+                <form id="TranscodeGuardConfigForm" novalidate>
+                    <div class="transcodeGuardTabs" role="tablist" aria-label="Transcode Guard settings">
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabPlayback" data-tab="playback" aria-controls="transcodeGuardPanelPlayback" aria-selected="true" tabindex="0">Playback</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabBrowser" data-tab="browser" aria-controls="transcodeGuardPanelBrowser" aria-selected="false" tabindex="-1">Browser Warning</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabLogin" data-tab="login" aria-controls="transcodeGuardPanelLogin" aria-selected="false" tabindex="-1">Login Nag</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabLimit" data-tab="limit" aria-controls="transcodeGuardPanelLimit" aria-selected="false" tabindex="-1">Transcode Limit</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabSimultaneous" data-tab="simultaneous" aria-controls="transcodeGuardPanelSimultaneous" aria-selected="false" tabindex="-1">Simultaneous</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabGpu" data-tab="gpu" aria-controls="transcodeGuardPanelGpu" aria-selected="false" tabindex="-1">GPU Guard</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabReaper" data-tab="reaper" aria-controls="transcodeGuardPanelReaper" aria-selected="false" tabindex="-1">Paused Reaper</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabMotd" data-tab="motd" aria-controls="transcodeGuardPanelMotd" aria-selected="false" tabindex="-1">MOTD</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabSessions" data-tab="sessions" aria-controls="transcodeGuardPanelSessions" aria-selected="false" tabindex="-1">Live Sessions</button>
                     </div>
 
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkUseStickyPlaybackMessages" name="chkUseStickyPlaybackMessages" />
-                            <span>Sticky Messages</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Sends each playback warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtDelaySeconds">Delay Before Check (seconds):</label>
-                        <input type="number" id="txtDelaySeconds" name="txtDelaySeconds" min="1" max="30" class="emby-input" />
-                        <div class="fieldDescription">How long to wait after playback starts before checking transcoding (1-30 seconds).</div>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtMessageTimeout">Message Timeout (ms):</label>
-                        <input type="number" id="txtMessageTimeout" name="txtMessageTimeout" min="3000" max="30000" class="emby-input" />
-                        <div class="fieldDescription">How long non-sticky messages stay visible (3000-30000 ms). Sticky messages use their fixed 4-second timeout.</div>
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkEnableLogging" name="chkEnableLogging" />
-                            <span>Enable Logging</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Log when nag messages are sent (helpful for debugging).</div>
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkExcludeLiveTv" name="chkExcludeLiveTv" />
-                            <span>Exclude Live TV</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Do not nag Live TV channel playback or count it toward login nags.</div>
-                    </div>
-
-                    <h2>Playback Trigger Reasons</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Select which transcoding reasons should trigger nag events. These choices apply to both playback nags and login nag history.
-                    </div>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
-                        <button is="emby-button" type="button" id="btnReasonSelectAll" class="raised">
-                            <span>Select All</span>
-                        </button>
-                        <button is="emby-button" type="button" id="btnReasonResetDefaults" class="raised">
-                            <span>Reset Defaults</span>
-                        </button>
-                        <button is="emby-button" type="button" id="btnReasonClearAll" class="raised">
-                            <span>Clear All</span>
-                        </button>
-                    </div>
-                    <div id="transcodeReasonList" style="margin-bottom: 20px;"></div>
-
-                    <h2>Client Filters</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Match clients using case-insensitive text. If the include list is empty, all clients are eligible. Excluded matches always win.
-                    </div>
-
-                    <div class="selectContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtIncludedClientPatterns">Only Include Matching Clients:</label>
-                        <textarea id="txtIncludedClientPatterns" name="txtIncludedClientPatterns" rows="3" class="emby-input"></textarea>
-                        <div class="fieldDescription">Optional. Enter one client match per line or comma, for example: Jellyfin Web, browser, moonfin.</div>
-                    </div>
-
-                    <div class="selectContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtExcludedClientPatterns">Exclude Matching Clients:</label>
-                        <textarea id="txtExcludedClientPatterns" name="txtExcludedClientPatterns" rows="3" class="emby-input"></textarea>
-                        <div class="fieldDescription">Optional. Matching clients will never receive playback or login nags, and their history will not count toward login nags.</div>
-                    </div>
-
-                    <h2>Browser Install Warning</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Turns the playback nag, GPU resource guard refusals, and transcode limit and
-                        simultaneous transcode blocks into a full warning with an install link, for Jellyfin Web browser sessions only. Native Jellyfin clients (Jellyfin Media Player, MPV Shim,
-                        Android, Android TV, Swiftfin and others) keep getting the normal Transcode Guard
-                        message. Requires the <strong>JavaScript Injector</strong> plugin; without it,
-                        browsers get the normal message too. Jellyfin Web still shows its own short popup
-                        underneath the warning.
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkEnableBrowserInstallNag" name="chkEnableBrowserInstallNag" />
-                            <span>Enable enhanced warning for Jellyfin Web browsers</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. Uses the same triggers, exclusions and filters as the playback nag, the GPU resource guard and the transcode limits; only how their messages look in a browser changes. Browser tabs opened before this was switched on need a reload.</div>
-                    </div>
-
-                    <div id="browserInstallNagOptions" style="display: none;">
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtBrowserInstallUrl">Install URL:</label>
-                            <input type="url" id="txtBrowserInstallUrl" name="txtBrowserInstallUrl" class="emby-input" placeholder="https://example.com/jellyfin-client" />
-                            <div class="fieldDescription">Where the Install Client button goes. Must be a full http:// or https:// link. Leave empty to show the warning without a button.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagTitle">Title:</label>
-                            <input type="text" id="txtBrowserNagTitle" name="txtBrowserNagTitle" class="emby-input" />
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelPlayback" data-tab="playback" aria-labelledby="transcodeGuardTabPlayback">
+                        <h2>Playback Nag</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Pops up a message when a stream is transcoding for one of the trigger reasons below. The
+                            user exclusions and client filters on this tab also apply to the login nag, the transcode
+                            limit and the browser install warning.
                         </div>
 
                         <div class="selectContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagMessage">Message:</label>
-                            <textarea id="txtBrowserNagMessage" name="txtBrowserNagMessage" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">The playback trigger reason is listed underneath automatically. GPU refusals, and transcode limit and simultaneous transcode blocks, use their own Refusal or Blocked Title and Message instead.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagAutoCloseSeconds">Close automatically after (seconds):</label>
-                            <input type="number" id="txtBrowserNagAutoCloseSeconds" name="txtBrowserNagAutoCloseSeconds" min="5" max="180" class="emby-input" />
-                            <div class="fieldDescription">5-180 seconds. The countdown pauses while the pointer is over the warning, and the viewer can close it sooner with Continue (Close on a refusal or block) or Esc.</div>
-                        </div>
-                    </div>
-
-                    <h2>Login Nag Settings</h2>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkEnableLoginNag" name="chkEnableLoginNag" />
-                            <span>Enable Login Nag</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Nag users on login if they've been transcoding too much.</div>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtLoginNagThreshold">Login Nag Threshold:</label>
-                        <input type="number" id="txtLoginNagThreshold" name="txtLoginNagThreshold" min="1" max="100" class="emby-input" />
-                        <div class="fieldDescription">Nag user if they've transcoded this many videos.</div>
-                    </div>
-
-                    <div class="selectContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="selectLoginNagTimeWindow">Login Nag Time Window:</label>
-                        <select is="emby-select" id="selectLoginNagTimeWindow" name="selectLoginNagTimeWindow" class="emby-select-withcolor emby-select">
-                            <option value="Week">Week</option>
-                            <option value="Month">Month</option>
-                        </select>
-                        <div class="fieldDescription">Check transcode history for the last week or month.</div>
-                    </div>
-
-                    <div class="selectContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtLoginNagMessage">Login Nag Message:</label>
-                        <textarea id="txtLoginNagMessage" name="txtLoginNagMessage" rows="3" class="emby-input"></textarea>
-                        <div class="fieldDescription">Message shown on login. Use {{transcodes}} for transcode count and {{timewindow}} for time window.</div>
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkUseStickyLoginNagMessages" name="chkUseStickyLoginNagMessages" />
-                            <span>Sticky Messages</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Sends each login warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
-                    </div>
-
-                    <h2>Transcode Limit</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Turns the login nag's count into a hard stop. A user at or over this limit has their
-                        next transcode refused before FFmpeg starts, and is shown the message below. Set it
-                        higher than the Login Nag Threshold so users are warned before they are stopped.
-                        Counted exactly like the login nag: same time window, same trigger reasons, same user
-                        and client exclusions. Bitrate-only transcodes, audio-only streams, and direct play
-                        are never refused, so a user who is over the limit can still watch anything their
-                        client can play without transcoding.
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkEnableTranscodeLimit" name="chkEnableTranscodeLimit" />
-                            <span>Block transcodes once the limit is reached</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. Playback fails for the user with the message below instead of only nagging them.</div>
-                    </div>
-
-                    <div id="transcodeLimitOptions" style="display: none;">
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitThreshold">Transcode Limit:</label>
-                            <input type="number" id="txtTranscodeLimitThreshold" name="txtTranscodeLimitThreshold" min="1" max="1000" class="emby-input" />
-                            <div class="fieldDescription">Refuse a transcode once the user has this many in the Login Nag Time Window.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitHeader">Blocked Title:</label>
-                            <input type="text" id="txtTranscodeLimitHeader" name="txtTranscodeLimitHeader" class="emby-input" />
-                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
-                        </div>
-
-                        <div class="selectContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitMessage">Blocked Message:</label>
-                            <textarea id="txtTranscodeLimitMessage" name="txtTranscodeLimitMessage" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">Shown when a transcode is refused. Use {{transcodes}} for their count, {{timewindow}} for the time window, and {{limit}} for the limit.</div>
+                            <label class="inputLabel inputLabelUnfocused" for="txtNagMessage">Nag Message:</label>
+                            <textarea id="txtNagMessage" name="txtNagMessage" rows="4" class="emby-input"></textarea>
+                            <div class="fieldDescription">Message to display to users who are transcoding due to unsupported formats.</div>
                         </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
-                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyTranscodeLimitMessages" name="chkUseStickyTranscodeLimitMessages" />
+                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyPlaybackMessages" name="chkUseStickyPlaybackMessages" />
                                 <span>Sticky Messages</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            <div class="fieldDescription checkboxFieldDescription">Sends each playback warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
                         </div>
-                    </div>
 
-                    <h2>User Exclusions</h2>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtDelaySeconds">Delay Before Check (seconds):</label>
+                            <input type="number" id="txtDelaySeconds" name="txtDelaySeconds" required min="1" max="30" class="emby-input" />
+                            <div class="fieldDescription">How long to wait after playback starts before checking transcoding (1-30 seconds).</div>
+                        </div>
 
-                    <div class="fieldDescription" style="margin-bottom: 10px;">
-                        Exclude specific users from receiving any nag messages (both playback and login).
-                    </div>
-
-                    <div style="margin-bottom: 20px;">
-                        <button is="emby-button" type="button" id="btnManageExclusions" class="raised block emby-button">
-                            <span>Manage Excluded Users</span>
-                        </button>
-                    </div>
-
-                    <h2>Live Session Monitor</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Active sessions currently matching this plugin's nag criteria.
-                    </div>
-                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
-                        <button is="emby-button" type="button" id="btnRefreshLiveSessions" class="raised button-submit">
-                            <span>Refresh</span>
-                        </button>
-                        <span id="liveSettingsLastUpdated" class="fieldDescription"></span>
-                    </div>
-                    <div id="liveSettingsSummary" style="font-size: 1.05em; margin-bottom: 8px;"></div>
-                    <div id="liveSettingsWarning" class="fieldDescription" style="margin-bottom: 12px;"></div>
-                    <div id="liveSettingsSessionList" style="margin-bottom: 20px;"></div>
-
-                    <h2>Message of the Day</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Send a message to everyone when they log in. This is independent of transcoding and has its own exclusions and client filters.
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkEnableMotd" name="chkEnableMotd" />
-                            <span>Enable Message of the Day</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. When on, every matching user receives the MOTD once per session at login. Sessions that are already signed in do not get it until they sign in again.</div>
-                    </div>
-
-                    <div id="motdOptions" style="display: none;">
-                        <div class="selectContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtMotdMessage">MOTD Message:</label>
-                            <textarea id="txtMotdMessage" name="txtMotdMessage" rows="4" class="emby-input"></textarea>
-                            <div class="fieldDescription">Message shown at login. Non-sticky MOTD messages use the shared message timeout.</div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtMessageTimeout">Message Timeout (ms):</label>
+                            <input type="number" id="txtMessageTimeout" name="txtMessageTimeout" required min="3000" max="30000" class="emby-input" />
+                            <div class="fieldDescription">How long non-sticky messages stay visible (3000-30000 ms). Sticky messages use their fixed 4-second timeout.</div>
                         </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
-                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyMotdMessages" name="chkUseStickyMotdMessages" />
-                                <span>Sticky Messages</span>
+                                <input type="checkbox" is="emby-checkbox" id="chkEnableLogging" name="chkEnableLogging" />
+                                <span>Enable Logging</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">Sends the MOTD three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            <div class="fieldDescription checkboxFieldDescription">Log when nag messages are sent (helpful for debugging).</div>
                         </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkExcludeLiveTv" name="chkExcludeLiveTv" />
+                                <span>Exclude Live TV</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Do not nag Live TV channel playback or count it toward login nags.</div>
+                        </div>
+
+                        <h2>Playback Trigger Reasons</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Select which transcoding reasons should trigger nag events. These choices apply to both playback nags and login nag history.
+                        </div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+                            <button is="emby-button" type="button" id="btnReasonSelectAll" class="raised">
+                                <span>Select All</span>
+                            </button>
+                            <button is="emby-button" type="button" id="btnReasonResetDefaults" class="raised">
+                                <span>Reset Defaults</span>
+                            </button>
+                            <button is="emby-button" type="button" id="btnReasonClearAll" class="raised">
+                                <span>Clear All</span>
+                            </button>
+                        </div>
+                        <div id="transcodeReasonList" style="margin-bottom: 20px;"></div>
+
+                        <h2>Client Filters</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Match clients using case-insensitive text. If the include list is empty, all clients are eligible. Excluded matches always win.
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtIncludedClientPatterns">Only Include Matching Clients:</label>
+                            <textarea id="txtIncludedClientPatterns" name="txtIncludedClientPatterns" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Optional. Enter one client match per line or comma, for example: Jellyfin Web, browser, moonfin.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtExcludedClientPatterns">Exclude Matching Clients:</label>
+                            <textarea id="txtExcludedClientPatterns" name="txtExcludedClientPatterns" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Optional. Matching clients will never receive playback or login nags, and their history will not count toward login nags.</div>
+                        </div>
+
+                        <h2>User Exclusions</h2>
 
                         <div class="fieldDescription" style="margin-bottom: 10px;">
-                            Exclude specific users from the MOTD. This list is separate from the nag exclusion list.
+                            Exclude specific users from receiving any nag messages (both playback and login).
                         </div>
 
                         <div style="margin-bottom: 20px;">
-                            <button is="emby-button" type="button" id="btnManageMotdExclusions" class="raised block emby-button">
-                                <span>Manage Excluded Users (MOTD)</span>
+                            <button is="emby-button" type="button" id="btnManageExclusions" class="raised block emby-button">
+                                <span>Manage Excluded Users</span>
                             </button>
                         </div>
-
-                        <div class="selectContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtMotdIncludedClientPatterns">Only Include Matching Clients (MOTD):</label>
-                            <textarea id="txtMotdIncludedClientPatterns" name="txtMotdIncludedClientPatterns" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">Optional. If empty, all clients receive the MOTD. Enter one client match per line or comma.</div>
-                        </div>
-
-                        <div class="selectContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtMotdExcludedClientPatterns">Exclude Matching Clients (MOTD):</label>
-                            <textarea id="txtMotdExcludedClientPatterns" name="txtMotdExcludedClientPatterns" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">Optional. Matching clients never receive the MOTD. Excluded matches always win over includes.</div>
-                        </div>
                     </div>
 
-                    <h2>Simultaneous Transcodes</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Caps how many videos one user can have transcoding at the same time. Once their other
-                        devices are at the maximum, the next transcode is refused before FFmpeg starts, and the
-                        user is shown the message below. Every video transcode counts, bitrate-only and Live TV
-                        included; direct play, direct stream, and audio are never counted or refused. Each device
-                        counts once, so a seek or the next episode on the same device replaces its transcode
-                        rather than adding one. The user exclusions and client filters above do not apply here:
-                        give a user their own, higher maximum instead.
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkEnableConcurrentTranscodeLimit" name="chkEnableConcurrentTranscodeLimit" />
-                            <span>Limit simultaneous transcodes per user</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. Nothing is limited until a global or per-user maximum is set below.</div>
-                    </div>
-
-                    <div id="concurrentTranscodeLimitOptions" style="display: none;">
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtMaxConcurrentTranscodes">Global Maximum:</label>
-                            <input type="number" id="txtMaxConcurrentTranscodes" name="txtMaxConcurrentTranscodes" min="1" max="100" class="emby-input" placeholder="No limit" />
-                            <div class="fieldDescription">How many transcodes each user may run at once. Leave empty for no global maximum.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <div class="inputLabel" style="margin-bottom: 8px;">Per-User Maximums:</div>
-                            <div id="concurrentTranscodeUserLimitList"></div>
-                            <div class="fieldDescription">A user's own maximum wins over the global one, higher or lower. Leave a user empty to use the global maximum.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtConcurrentTranscodeLimitHeader">Blocked Title:</label>
-                            <input type="text" id="txtConcurrentTranscodeLimitHeader" name="txtConcurrentTranscodeLimitHeader" class="emby-input" />
-                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
-                        </div>
-
-                        <div class="selectContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtConcurrentTranscodeLimitMessage">Blocked Message:</label>
-                            <textarea id="txtConcurrentTranscodeLimitMessage" name="txtConcurrentTranscodeLimitMessage" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">Shown when a transcode is refused. Use {{active}} for how many of their other devices are transcoding and {{limit}} for their maximum.</div>
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelBrowser" data-tab="browser" aria-labelledby="transcodeGuardTabBrowser" hidden>
+                        <h2>Browser Install Warning</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Turns the playback nag, GPU resource guard refusals, and transcode limit and
+                            simultaneous transcode blocks into a full warning with an install link, for Jellyfin Web browser sessions only. Native Jellyfin clients (Jellyfin Media Player, MPV Shim,
+                            Android, Android TV, Swiftfin and others) keep getting the normal Transcode Guard
+                            message. Requires the <strong>JavaScript Injector</strong> plugin; without it,
+                            browsers get the normal message too. Jellyfin Web still shows its own short popup
+                            underneath the warning.
                         </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
-                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyConcurrentTranscodeLimitMessages" name="chkUseStickyConcurrentTranscodeLimitMessages" />
+                                <input type="checkbox" is="emby-checkbox" id="chkEnableBrowserInstallNag" name="chkEnableBrowserInstallNag" />
+                                <span>Enable enhanced warning for Jellyfin Web browsers</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. Uses the same triggers, exclusions and filters as the playback nag, the GPU resource guard and the transcode limits; only how their messages look in a browser changes. Browser tabs opened before this was switched on need a reload.</div>
+                        </div>
+
+                        <div id="browserInstallNagOptions" data-feature-switch="chkEnableBrowserInstallNag" style="display: none;">
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtBrowserInstallUrl">Install URL:</label>
+                                <input type="url" id="txtBrowserInstallUrl" name="txtBrowserInstallUrl" class="emby-input" placeholder="https://example.com/jellyfin-client" />
+                                <div class="fieldDescription">Where the Install Client button goes. Must be a full http:// or https:// link. Leave empty to show the warning without a button.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagTitle">Title:</label>
+                                <input type="text" id="txtBrowserNagTitle" name="txtBrowserNagTitle" class="emby-input" />
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagMessage">Message:</label>
+                                <textarea id="txtBrowserNagMessage" name="txtBrowserNagMessage" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">The playback trigger reason is listed underneath automatically. GPU refusals, and transcode limit and simultaneous transcode blocks, use their own Refusal or Blocked Title and Message instead.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtBrowserNagAutoCloseSeconds">Close automatically after (seconds):</label>
+                                <input type="number" id="txtBrowserNagAutoCloseSeconds" name="txtBrowserNagAutoCloseSeconds" min="5" max="180" class="emby-input" />
+                                <div class="fieldDescription">5-180 seconds. The countdown pauses while the pointer is over the warning, and the viewer can close it sooner with Continue (Close on a refusal or block) or Esc.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelLogin" data-tab="login" aria-labelledby="transcodeGuardTabLogin" hidden>
+                        <h2>Login Nag Settings</h2>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkEnableLoginNag" name="chkEnableLoginNag" />
+                                <span>Enable Login Nag</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Nag users on login if they've been transcoding too much.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtLoginNagThreshold">Login Nag Threshold:</label>
+                            <input type="number" id="txtLoginNagThreshold" name="txtLoginNagThreshold" required min="1" max="100" class="emby-input" />
+                            <div class="fieldDescription">Nag user if they've transcoded this many videos.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="selectLoginNagTimeWindow">Login Nag Time Window:</label>
+                            <select is="emby-select" id="selectLoginNagTimeWindow" name="selectLoginNagTimeWindow" class="emby-select-withcolor emby-select">
+                                <option value="Week">Week</option>
+                                <option value="Month">Month</option>
+                            </select>
+                            <div class="fieldDescription">Check transcode history for the last week or month.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtLoginNagMessage">Login Nag Message:</label>
+                            <textarea id="txtLoginNagMessage" name="txtLoginNagMessage" rows="3" class="emby-input"></textarea>
+                            <div class="fieldDescription">Message shown on login. Use {{transcodes}} for transcode count and {{timewindow}} for time window.</div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyLoginNagMessages" name="chkUseStickyLoginNagMessages" />
                                 <span>Sticky Messages</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            <div class="fieldDescription checkboxFieldDescription">Sends each login warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
                         </div>
                     </div>
 
-                    <h2>GPU Resource Guard</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Gives each NVIDIA hardware video transcode a conservative VRAM budget based on its source,
-                        filters, and output, then refuses it before FFmpeg launches when that budget will not fit.
-                        This allows small jobs to use gaps that a fixed free-memory threshold would waste while
-                        keeping expensive 4K/HDR jobs out when they are unlikely to fit. NVIDIA only:
-                        QSV, VAAPI, and VideoToolbox transcodes are never refused. Requires <code>nvidia-smi</code>
-                        to be reachable from the Jellyfin server process.
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkEnableGpuResourceGuard" name="chkEnableGpuResourceGuard" />
-                            <span>Enable GPU resource guard</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. The budget is automatic; if free GPU memory cannot be read, playback is always allowed.</div>
-                    </div>
-
-                    <div id="gpuGuardOptions" style="display: none;">
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtGpuIndex">GPU index:</label>
-                            <input type="number" id="txtGpuIndex" name="txtGpuIndex" min="0" max="15" class="emby-input" />
-                            <div class="fieldDescription">Fallback zero-based NVIDIA GPU index. When FFmpeg explicitly selects a GPU, the guard automatically checks that device instead.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtGpuCheckTimeoutMs">GPU check timeout (ms):</label>
-                            <input type="number" id="txtGpuCheckTimeoutMs" name="txtGpuCheckTimeoutMs" min="100" max="10000" class="emby-input" />
-                            <div class="fieldDescription">How long to wait for nvidia-smi before giving up and allowing playback.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtNvidiaSmiPath">nvidia-smi path:</label>
-                            <input type="text" id="txtNvidiaSmiPath" name="txtNvidiaSmiPath" class="emby-input" placeholder="nvidia-smi" />
-                            <div class="fieldDescription">Optional. Leave empty to resolve nvidia-smi from PATH. Set a full path if the server cannot find it.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtGpuGuardDeniedHeader">Refusal Title:</label>
-                            <input type="text" id="txtGpuGuardDeniedHeader" name="txtGpuGuardDeniedHeader" class="emby-input" />
-                            <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
-                        </div>
-
-                        <div class="selectContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtGpuGuardDeniedMessage">Refusal Message:</label>
-                            <textarea id="txtGpuGuardDeniedMessage" name="txtGpuGuardDeniedMessage" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">Keep this free of server detail. VRAM figures, encoder names, and FFmpeg errors belong in the server log.</div>
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelLimit" data-tab="limit" aria-labelledby="transcodeGuardTabLimit" hidden>
+                        <h2>Transcode Limit</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Turns the login nag's count into a hard stop. A user at or over this limit has their
+                            next transcode refused before FFmpeg starts, and is shown the message below. Set it
+                            higher than the Login Nag Threshold so users are warned before they are stopped.
+                            Counted exactly like the login nag: same time window, same trigger reasons, same user
+                            and client exclusions. Bitrate-only transcodes, audio-only streams, and direct play
+                            are never refused, so a user who is over the limit can still watch anything their
+                            client can play without transcoding.
                         </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
-                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyGpuGuardMessages" name="chkUseStickyGpuGuardMessages" />
-                                <span>Sticky Messages</span>
+                                <input type="checkbox" is="emby-checkbox" id="chkEnableTranscodeLimit" name="chkEnableTranscodeLimit" />
+                                <span>Block transcodes once the limit is reached</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. Playback fails for the user with the message below instead of only nagging them.</div>
+                        </div>
+
+                        <div id="transcodeLimitOptions" data-feature-switch="chkEnableTranscodeLimit" style="display: none;">
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitThreshold">Transcode Limit:</label>
+                                <input type="number" id="txtTranscodeLimitThreshold" name="txtTranscodeLimitThreshold" min="1" max="1000" class="emby-input" />
+                                <div class="fieldDescription">Refuse a transcode once the user has this many in the Login Nag Time Window.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitHeader">Blocked Title:</label>
+                                <input type="text" id="txtTranscodeLimitHeader" name="txtTranscodeLimitHeader" class="emby-input" />
+                                <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitMessage">Blocked Message:</label>
+                                <textarea id="txtTranscodeLimitMessage" name="txtTranscodeLimitMessage" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">Shown when a transcode is refused. Use {{transcodes}} for their count, {{timewindow}} for the time window, and {{limit}} for the limit.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkUseStickyTranscodeLimitMessages" name="chkUseStickyTranscodeLimitMessages" />
+                                    <span>Sticky Messages</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            </div>
                         </div>
                     </div>
 
-                    <h2>Paused Transcode Reaper</h2>
-                    <div class="fieldDescription" style="margin-bottom: 12px;">
-                        Jellyfin never evicts a paused transcode on its own: a paused client keeps checking in,
-                        so its FFmpeg process keeps holding VRAM, an encoder session, and its output files for
-                        as long as someone leaves the pause screen up. This stops a transcode that has been
-                        paused for too long. The client is asked to stop first, which leaves a resume point
-                        behind; a client that ignores that has its FFmpeg job ended server-side. Neither path
-                        signs the user out or removes their device.
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" is="emby-checkbox" id="chkEnablePausedTranscodeReaper" name="chkEnablePausedTranscodeReaper" />
-                            <span>Stop transcodes left paused</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Off by default. Applies to every paused transcode, including Live TV and CPU transcodes. Direct play is never touched, because it holds nothing to reclaim.</div>
-                    </div>
-
-                    <div id="pausedReaperOptions" style="display: none;">
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeTimeoutMinutes">Stop after paused for (minutes):</label>
-                            <input type="number" id="txtPausedTranscodeTimeoutMinutes" name="txtPausedTranscodeTimeoutMinutes" min="1" max="1440" class="emby-input" />
-                            <div class="fieldDescription">How long a transcode may sit paused before it is stopped. The clock restarts whenever playback resumes or the viewer seeks.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningMinutes">Warn this many minutes first:</label>
-                            <input type="number" id="txtPausedTranscodeWarningMinutes" name="txtPausedTranscodeWarningMinutes" min="0" max="60" class="emby-input" />
-                            <div class="fieldDescription">Sends one popup this long before the stop, giving the viewer a chance to press play. Set to 0 to stop without warning.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningHeader">Warning Title:</label>
-                            <input type="text" id="txtPausedTranscodeWarningHeader" name="txtPausedTranscodeWarningHeader" class="emby-input" />
-                            <div class="fieldDescription">Title of the popup shown before the stop.</div>
-                        </div>
-
-                        <div class="selectContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningMessage">Warning Message:</label>
-                            <textarea id="txtPausedTranscodeWarningMessage" name="txtPausedTranscodeWarningMessage" rows="3" class="emby-input"></textarea>
-                            <div class="fieldDescription">Supports <code>{{minutes}}</code>, replaced with the minutes left before the stop.</div>
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelSimultaneous" data-tab="simultaneous" aria-labelledby="transcodeGuardTabSimultaneous" hidden>
+                        <h2>Simultaneous Transcodes</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Caps how many videos one user can have transcoding at the same time. Once their other
+                            devices are at the maximum, the next transcode is refused before FFmpeg starts, and the
+                            user is shown the message below. Every video transcode counts, bitrate-only and Live TV
+                            included; direct play, direct stream, and audio are never counted or refused. Each device
+                            counts once, so a seek or the next episode on the same device replaces its transcode
+                            rather than adding one. The user exclusions and client filters on the Playback tab do
+                            not apply here: give a user their own, higher maximum instead.
                         </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
-                                <input type="checkbox" is="emby-checkbox" id="chkUseStickyPausedTranscodeMessages" name="chkUseStickyPausedTranscodeMessages" />
-                                <span>Sticky Messages</span>
+                                <input type="checkbox" is="emby-checkbox" id="chkEnableConcurrentTranscodeLimit" name="chkEnableConcurrentTranscodeLimit" />
+                                <span>Limit simultaneous transcodes per user</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">Sends each warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. Nothing is limited until a global or per-user maximum is set below.</div>
+                        </div>
+
+                        <div id="concurrentTranscodeLimitOptions" data-feature-switch="chkEnableConcurrentTranscodeLimit" style="display: none;">
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtMaxConcurrentTranscodes">Global Maximum:</label>
+                                <input type="number" id="txtMaxConcurrentTranscodes" name="txtMaxConcurrentTranscodes" min="1" max="100" class="emby-input" placeholder="No limit" />
+                                <div class="fieldDescription">How many transcodes each user may run at once. Leave empty for no global maximum.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <div class="inputLabel" style="margin-bottom: 8px;">Per-User Maximums:</div>
+                                <div id="concurrentTranscodeUserLimitList"></div>
+                                <div class="fieldDescription">A user's own maximum wins over the global one, higher or lower. Leave a user empty to use the global maximum.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtConcurrentTranscodeLimitHeader">Blocked Title:</label>
+                                <input type="text" id="txtConcurrentTranscodeLimitHeader" name="txtConcurrentTranscodeLimitHeader" class="emby-input" />
+                                <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtConcurrentTranscodeLimitMessage">Blocked Message:</label>
+                                <textarea id="txtConcurrentTranscodeLimitMessage" name="txtConcurrentTranscodeLimitMessage" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">Shown when a transcode is refused. Use {{active}} for how many of their other devices are transcoding and {{limit}} for their maximum.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkUseStickyConcurrentTranscodeLimitMessages" name="chkUseStickyConcurrentTranscodeLimitMessages" />
+                                    <span>Sticky Messages</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelGpu" data-tab="gpu" aria-labelledby="transcodeGuardTabGpu" hidden>
+                        <h2>GPU Resource Guard</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Gives each NVIDIA hardware video transcode a conservative VRAM budget based on its source,
+                            filters, and output, then refuses it before FFmpeg launches when that budget will not fit.
+                            This allows small jobs to use gaps that a fixed free-memory threshold would waste while
+                            keeping expensive 4K/HDR jobs out when they are unlikely to fit. NVIDIA only:
+                            QSV, VAAPI, and VideoToolbox transcodes are never refused. Requires <code>nvidia-smi</code>
+                            to be reachable from the Jellyfin server process.
                         </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
-                                <input type="checkbox" is="emby-checkbox" id="chkReapPausedDirectPlay" name="chkReapPausedDirectPlay" />
-                                <span>Also stop paused direct play</span>
+                                <input type="checkbox" is="emby-checkbox" id="chkEnableGpuResourceGuard" name="chkEnableGpuResourceGuard" />
+                                <span>Enable GPU resource guard</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">Off by default. Direct play holds an open file handle and a stream slot rather than VRAM or an encoder session, so this frees far less than stopping a transcode. It is also stop-only: a direct play client that ignores the stop cannot be ended server-side, because there is no FFmpeg process to end.</div>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. The budget is automatic; if free GPU memory cannot be read, playback is always allowed.</div>
                         </div>
 
-                        <div class="fieldDescription" style="margin-bottom: 10px;">
-                            Exclude specific users from the reaper. Their paused playback is left running. This list is separate from every other exclusion list.
+                        <div id="gpuGuardOptions" data-feature-switch="chkEnableGpuResourceGuard" style="display: none;">
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtGpuIndex">GPU index:</label>
+                                <input type="number" id="txtGpuIndex" name="txtGpuIndex" min="0" max="15" class="emby-input" />
+                                <div class="fieldDescription">Fallback zero-based NVIDIA GPU index. When FFmpeg explicitly selects a GPU, the guard automatically checks that device instead.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtGpuCheckTimeoutMs">GPU check timeout (ms):</label>
+                                <input type="number" id="txtGpuCheckTimeoutMs" name="txtGpuCheckTimeoutMs" min="100" max="10000" class="emby-input" />
+                                <div class="fieldDescription">How long to wait for nvidia-smi before giving up and allowing playback.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtNvidiaSmiPath">nvidia-smi path:</label>
+                                <input type="text" id="txtNvidiaSmiPath" name="txtNvidiaSmiPath" class="emby-input" placeholder="nvidia-smi" />
+                                <div class="fieldDescription">Optional. Leave empty to resolve nvidia-smi from PATH. Set a full path if the server cannot find it.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtGpuGuardDeniedHeader">Refusal Title:</label>
+                                <input type="text" id="txtGpuGuardDeniedHeader" name="txtGpuGuardDeniedHeader" class="emby-input" />
+                                <div class="fieldDescription">Title of the popup shown to the client whose transcode was refused. With the browser install warning on, Jellyfin Web browsers see this and the message in the warning dialog.</div>
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtGpuGuardDeniedMessage">Refusal Message:</label>
+                                <textarea id="txtGpuGuardDeniedMessage" name="txtGpuGuardDeniedMessage" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">Keep this free of server detail. VRAM figures, encoder names, and FFmpeg errors belong in the server log.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkUseStickyGpuGuardMessages" name="chkUseStickyGpuGuardMessages" />
+                                    <span>Sticky Messages</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Sends each refusal notice three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelReaper" data-tab="reaper" aria-labelledby="transcodeGuardTabReaper" hidden>
+                        <h2>Paused Transcode Reaper</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Jellyfin never evicts a paused transcode on its own: a paused client keeps checking in,
+                            so its FFmpeg process keeps holding VRAM, an encoder session, and its output files for
+                            as long as someone leaves the pause screen up. This stops a transcode that has been
+                            paused for too long. The client is asked to stop first, which leaves a resume point
+                            behind; a client that ignores that has its FFmpeg job ended server-side. Neither path
+                            signs the user out or removes their device.
                         </div>
 
-                        <div style="margin-bottom: 20px;">
-                            <button is="emby-button" type="button" id="btnManagePausedTranscodeExclusions" class="raised block emby-button">
-                                <span>Manage Excluded Users (Paused Transcodes)</span>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkEnablePausedTranscodeReaper" name="chkEnablePausedTranscodeReaper" />
+                                <span>Stop transcodes left paused</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. Applies to every paused transcode, including Live TV and CPU transcodes. Direct play is never touched, because it holds nothing to reclaim.</div>
+                        </div>
+
+                        <div id="pausedReaperOptions" data-feature-switch="chkEnablePausedTranscodeReaper" style="display: none;">
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeTimeoutMinutes">Stop after paused for (minutes):</label>
+                                <input type="number" id="txtPausedTranscodeTimeoutMinutes" name="txtPausedTranscodeTimeoutMinutes" min="1" max="1440" class="emby-input" />
+                                <div class="fieldDescription">How long a transcode may sit paused before it is stopped. The clock restarts whenever playback resumes or the viewer seeks.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningMinutes">Warn this many minutes first:</label>
+                                <input type="number" id="txtPausedTranscodeWarningMinutes" name="txtPausedTranscodeWarningMinutes" min="0" max="60" class="emby-input" />
+                                <div class="fieldDescription">Sends one popup this long before the stop, giving the viewer a chance to press play. Set to 0 to stop without warning.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningHeader">Warning Title:</label>
+                                <input type="text" id="txtPausedTranscodeWarningHeader" name="txtPausedTranscodeWarningHeader" class="emby-input" />
+                                <div class="fieldDescription">Title of the popup shown before the stop.</div>
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPausedTranscodeWarningMessage">Warning Message:</label>
+                                <textarea id="txtPausedTranscodeWarningMessage" name="txtPausedTranscodeWarningMessage" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">Supports <code>{{minutes}}</code>, replaced with the minutes left before the stop.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkUseStickyPausedTranscodeMessages" name="chkUseStickyPausedTranscodeMessages" />
+                                    <span>Sticky Messages</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Sends each warning three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkReapPausedDirectPlay" name="chkReapPausedDirectPlay" />
+                                    <span>Also stop paused direct play</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Off by default. Direct play holds an open file handle and a stream slot rather than VRAM or an encoder session, so this frees far less than stopping a transcode. It is also stop-only: a direct play client that ignores the stop cannot be ended server-side, because there is no FFmpeg process to end.</div>
+                            </div>
+
+                            <div class="fieldDescription" style="margin-bottom: 10px;">
+                                Exclude specific users from the reaper. Their paused playback is left running. This list is separate from every other exclusion list.
+                            </div>
+
+                            <div style="margin-bottom: 20px;">
+                                <button is="emby-button" type="button" id="btnManagePausedTranscodeExclusions" class="raised block emby-button">
+                                    <span>Manage Excluded Users (Paused Transcodes)</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelMotd" data-tab="motd" aria-labelledby="transcodeGuardTabMotd" hidden>
+                        <h2>Message of the Day</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Send a message to everyone when they log in. This is independent of transcoding and has its own exclusions and client filters.
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkEnableMotd" name="chkEnableMotd" />
+                                <span>Enable Message of the Day</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. When on, every matching user receives the MOTD once per session at login. Sessions that are already signed in do not get it until they sign in again.</div>
+                        </div>
+
+                        <div id="motdOptions" data-feature-switch="chkEnableMotd" style="display: none;">
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtMotdMessage">MOTD Message:</label>
+                                <textarea id="txtMotdMessage" name="txtMotdMessage" rows="4" class="emby-input"></textarea>
+                                <div class="fieldDescription">Message shown at login. Non-sticky MOTD messages use the shared message timeout.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkUseStickyMotdMessages" name="chkUseStickyMotdMessages" />
+                                    <span>Sticky Messages</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Sends the MOTD three times, 3 seconds apart, with a 4-second timeout to improve visibility on clients that dismiss Jellyfin messages quickly.</div>
+                            </div>
+
+                            <div class="fieldDescription" style="margin-bottom: 10px;">
+                                Exclude specific users from the MOTD. This list is separate from the nag exclusion list.
+                            </div>
+
+                            <div style="margin-bottom: 20px;">
+                                <button is="emby-button" type="button" id="btnManageMotdExclusions" class="raised block emby-button">
+                                    <span>Manage Excluded Users (MOTD)</span>
+                                </button>
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtMotdIncludedClientPatterns">Only Include Matching Clients (MOTD):</label>
+                                <textarea id="txtMotdIncludedClientPatterns" name="txtMotdIncludedClientPatterns" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">Optional. If empty, all clients receive the MOTD. Enter one client match per line or comma.</div>
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtMotdExcludedClientPatterns">Exclude Matching Clients (MOTD):</label>
+                                <textarea id="txtMotdExcludedClientPatterns" name="txtMotdExcludedClientPatterns" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">Optional. Matching clients never receive the MOTD. Excluded matches always win over includes.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelSessions" data-tab="sessions" aria-labelledby="transcodeGuardTabSessions" hidden>
+                        <h2>Live Session Monitor</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Active sessions currently matching this plugin's nag criteria.
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+                            <button is="emby-button" type="button" id="btnRefreshLiveSessions" class="raised button-submit">
+                                <span>Refresh</span>
                             </button>
+                            <span id="liveSettingsLastUpdated" class="fieldDescription"></span>
                         </div>
+                        <div id="liveSettingsSummary" style="font-size: 1.05em; margin-bottom: 8px;"></div>
+                        <div id="liveSettingsWarning" class="fieldDescription" style="margin-bottom: 12px;"></div>
+                        <div id="liveSettingsSessionList" style="margin-bottom: 20px;"></div>
                     </div>
 
                     <div>
@@ -482,7 +570,7 @@
 
             <!-- User Exclusion Modal -->
             <div id="userExclusionModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; overflow-y: auto;">
-                <div style="background: var(--theme-background-content); margin: 50px auto; max-width: 600px; padding: 20px; border-radius: 4px;">
+                <div class="transcodeGuardModal">
                     <h2>Select Users to Exclude</h2>
                     <div class="fieldDescription" style="margin-bottom: 15px;">
                         By default, all users are included. Uncheck users to exclude them from ALL nag messages.
@@ -514,7 +602,7 @@
 
             <!-- MOTD User Exclusion Modal -->
             <div id="motdUserExclusionModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; overflow-y: auto;">
-                <div style="background: var(--theme-background-content); margin: 50px auto; max-width: 600px; padding: 20px; border-radius: 4px;">
+                <div class="transcodeGuardModal">
                     <h2>Select Users to Exclude from MOTD</h2>
                     <div class="fieldDescription" style="margin-bottom: 15px;">
                         By default, all users receive the MOTD. Uncheck users to exclude them from the MOTD only.
@@ -546,7 +634,7 @@
 
             <!-- Paused Transcode User Exclusion Modal -->
             <div id="pausedTranscodeUserExclusionModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; overflow-y: auto;">
-                <div style="background: var(--theme-background-content); margin: 50px auto; max-width: 600px; padding: 20px; border-radius: 4px;">
+                <div class="transcodeGuardModal">
                     <h2>Select Users to Exclude from the Paused Transcode Reaper</h2>
                     <div class="fieldDescription" style="margin-bottom: 15px;">
                         By default, every user's paused transcodes are stopped. Uncheck users to leave their paused transcodes running indefinitely.
@@ -849,8 +937,9 @@
                 }
             };
 
-            // Keeps the MOTD block collapsed unless the feature is switched on.
-            var MotdSection = {
+            // Shows one settings tab at a time. Every panel stays inside the one form, so Save sends
+            // every tab's values whichever tab it is pressed on.
+            var SettingsTabs = {
                 initialized: false,
 
                 init: function() {
@@ -858,18 +947,76 @@
                         return;
                     }
 
-                    document.getElementById('chkEnableMotd').addEventListener('change', this.updateVisibility);
+                    var tabs = this;
+                    this.buttons().forEach(function(button) {
+                        button.addEventListener('click', function() {
+                            tabs.show(button.getAttribute('data-tab'));
+                        });
+                        button.addEventListener('keydown', tabs.onKeyDown.bind(tabs));
+                    });
                     this.initialized = true;
                 },
 
-                updateVisibility: function() {
-                    var enabled = document.getElementById('chkEnableMotd').checked;
-                    document.getElementById('motdOptions').style.display = enabled ? 'block' : 'none';
+                buttons: function() {
+                    return Array.prototype.slice.call(document.querySelectorAll('#TranscodeGuardConfigForm [role="tab"]'));
+                },
+
+                current: function() {
+                    var selected = document.querySelector('#TranscodeGuardConfigForm [role="tab"][aria-selected="true"]');
+                    return selected ? selected.getAttribute('data-tab') : 'playback';
+                },
+
+                show: function(name) {
+                    this.buttons().forEach(function(button) {
+                        var selected = button.getAttribute('data-tab') === name;
+                        button.setAttribute('aria-selected', selected ? 'true' : 'false');
+                        button.tabIndex = selected ? 0 : -1;
+                        document.getElementById(button.getAttribute('aria-controls')).hidden = !selected;
+                    });
+
+                    LiveSessionMonitor.setActive(name === 'sessions');
+                },
+
+                // Brings the tab holding `element` on screen, so a field Save objects to can be seen.
+                showTabOf: function(element) {
+                    var panel = element.closest('[role="tabpanel"]');
+                    if (panel) {
+                        this.show(panel.getAttribute('data-tab'));
+                    }
+                },
+
+                // The arrow keys move between tabs and wrap around; Home and End jump to either end.
+                onKeyDown: function(e) {
+                    var buttons = this.buttons();
+                    var index = buttons.indexOf(e.currentTarget);
+                    var next;
+
+                    switch (e.key) {
+                        case 'ArrowRight':
+                            next = buttons[(index + 1) % buttons.length];
+                            break;
+                        case 'ArrowLeft':
+                            next = buttons[(index - 1 + buttons.length) % buttons.length];
+                            break;
+                        case 'Home':
+                            next = buttons[0];
+                            break;
+                        case 'End':
+                            next = buttons[buttons.length - 1];
+                            break;
+                        default:
+                            return;
+                    }
+
+                    e.preventDefault();
+                    this.show(next.getAttribute('data-tab'));
+                    next.focus();
                 }
             };
 
-            // Keeps the GPU guard block collapsed unless the feature is switched on.
-            var GpuGuardSection = {
+            // Collapses each feature's settings while its switch is off. Every collapsible block names
+            // its switch in data-feature-switch.
+            var FeatureSwitches = {
                 initialized: false,
 
                 init: function() {
@@ -877,15 +1024,64 @@
                         return;
                     }
 
-                    document.getElementById('chkEnableGpuResourceGuard').addEventListener('change', this.updateVisibility);
+                    var switches = this;
+                    this.blocks().forEach(function(block) {
+                        document.getElementById(block.getAttribute('data-feature-switch')).addEventListener('change', function() {
+                            switches.update(block);
+                        });
+                    });
                     this.initialized = true;
                 },
 
-                updateVisibility: function() {
-                    var enabled = document.getElementById('chkEnableGpuResourceGuard').checked;
-                    document.getElementById('gpuGuardOptions').style.display = enabled ? 'block' : 'none';
+                blocks: function() {
+                    return Array.prototype.slice.call(document.querySelectorAll('#TranscodeGuardConfigForm [data-feature-switch]'));
                 },
 
+                isOn: function(block) {
+                    return document.getElementById(block.getAttribute('data-feature-switch')).checked;
+                },
+
+                update: function(block) {
+                    block.style.display = this.isOn(block) ? 'block' : 'none';
+                },
+
+                updateAll: function() {
+                    this.blocks().forEach(this.update, this);
+                },
+
+                isSwitchedOff: function(element) {
+                    var block = element.closest('[data-feature-switch]');
+                    return !!block && !this.isOn(block);
+                }
+            };
+
+            // The form is novalidate on purpose. The browser's own check runs before the submit
+            // handler, and when the field it objects to is on a hidden tab or in a collapsed feature
+            // it has nowhere to show its message, so it cancels the Save without a word. This check
+            // runs inside the handler instead, and always shows what it found.
+            var SaveCheck = {
+                // Fields behind a switched-off feature are let through as they are: they do nothing
+                // until the feature is back on, and then they are on screen to be corrected.
+                firstInvalidField: function() {
+                    var fields = document.querySelectorAll('#TranscodeGuardConfigForm input, #TranscodeGuardConfigForm select, #TranscodeGuardConfigForm textarea');
+                    for (var i = 0; i < fields.length; i++) {
+                        if (!fields[i].checkValidity() && !FeatureSwitches.isSwitchedOff(fields[i])) {
+                            return fields[i];
+                        }
+                    }
+
+                    return null;
+                },
+
+                // The field's tab goes first: the browser cannot point at a field that is not on screen.
+                report: function(field) {
+                    SettingsTabs.showTabOf(field);
+                    field.reportValidity();
+                }
+            };
+
+            // Reads the GPU guard's numeric fields.
+            var GpuGuardSection = {
                 // A blank or non-numeric field must not be saved as NaN.
                 readNumber: function(elementId, fallback) {
                     var parsed = parseInt(document.getElementById(elementId).value, 10);
@@ -898,24 +1094,8 @@
                 }
             };
 
-            // Keeps the transcode limit block collapsed unless the feature is switched on.
+            // Reads the transcode limit's numeric field.
             var TranscodeLimitSection = {
-                initialized: false,
-
-                init: function() {
-                    if (this.initialized) {
-                        return;
-                    }
-
-                    document.getElementById('chkEnableTranscodeLimit').addEventListener('change', this.updateVisibility);
-                    this.initialized = true;
-                },
-
-                updateVisibility: function() {
-                    var enabled = document.getElementById('chkEnableTranscodeLimit').checked;
-                    document.getElementById('transcodeLimitOptions').style.display = enabled ? 'block' : 'none';
-                },
-
                 // A blank or non-numeric field must not be saved as NaN, and a limit below 1 would
                 // refuse everything, so it falls back to the default rather than being stored.
                 readNumber: function(elementId, fallback) {
@@ -924,8 +1104,7 @@
                 }
             };
 
-            // Keeps the simultaneous transcode block collapsed unless the feature is switched on, and
-            // renders one maximum field per user.
+            // Renders one maximum field per user for the simultaneous transcode limit, and reads them back.
             var ConcurrentTranscodeLimitSection = {
                 initialized: false,
                 usersLoaded: false,
@@ -935,14 +1114,8 @@
                         return;
                     }
 
-                    document.getElementById('chkEnableConcurrentTranscodeLimit').addEventListener('change', this.updateVisibility);
                     document.getElementById('txtMaxConcurrentTranscodes').addEventListener('input', this.updatePlaceholders.bind(this));
                     this.initialized = true;
-                },
-
-                updateVisibility: function() {
-                    var enabled = document.getElementById('chkEnableConcurrentTranscodeLimit').checked;
-                    document.getElementById('concurrentTranscodeLimitOptions').style.display = enabled ? 'block' : 'none';
                 },
 
                 // Blank, non-numeric and below 1 all mean "no maximum" and are saved as 0: a maximum
@@ -1019,26 +1192,11 @@
                 }
             };
 
-            // Keeps the browser install warning block collapsed unless the feature is switched on.
+            // Checks the browser install warning's link and clamps its auto-close time.
             var BrowserInstallNagSection = {
-                initialized: false,
                 minAutoCloseSeconds: 5,
                 maxAutoCloseSeconds: 180,
                 defaultAutoCloseSeconds: 60,
-
-                init: function() {
-                    if (this.initialized) {
-                        return;
-                    }
-
-                    document.getElementById('chkEnableBrowserInstallNag').addEventListener('change', this.updateVisibility);
-                    this.initialized = true;
-                },
-
-                updateVisibility: function() {
-                    var enabled = document.getElementById('chkEnableBrowserInstallNag').checked;
-                    document.getElementById('browserInstallNagOptions').style.display = enabled ? 'block' : 'none';
-                },
 
                 // Empty is allowed (no button); anything else must be a full http(s) link, the same
                 // rule the server applies before it hands the link to a browser.
@@ -1068,24 +1226,8 @@
                 }
             };
 
-            // Keeps the paused transcode reaper block collapsed unless the feature is switched on.
+            // Reads the paused transcode reaper's numeric fields.
             var PausedReaperSection = {
-                initialized: false,
-
-                init: function() {
-                    if (this.initialized) {
-                        return;
-                    }
-
-                    document.getElementById('chkEnablePausedTranscodeReaper').addEventListener('change', this.updateVisibility);
-                    this.initialized = true;
-                },
-
-                updateVisibility: function() {
-                    var enabled = document.getElementById('chkEnablePausedTranscodeReaper').checked;
-                    document.getElementById('pausedReaperOptions').style.display = enabled ? 'block' : 'none';
-                },
-
                 // A blank or non-numeric field must not be saved as NaN.
                 readNumber: function(elementId, fallback) {
                     var parsed = parseInt(document.getElementById(elementId).value, 10);
@@ -1100,6 +1242,7 @@
 
             var LiveSessionMonitor = {
                 initialized: false,
+                active: false,
                 refreshTimer: null,
                 selectedReasonNames: [],
                 selectedReasonMap: {},
@@ -1120,10 +1263,28 @@
                     this.initialized = true;
                 },
 
+                // Looks up sessions only while the Live Sessions tab is open, and not while the browser
+                // tab itself is in the background: nothing else on the page shows them.
+                setActive: function(active) {
+                    if (active === this.active) {
+                        return;
+                    }
+
+                    this.active = active;
+                    if (active) {
+                        this.refresh(false);
+                        this.startRefreshTimer();
+                    } else {
+                        this.stopRefreshTimer();
+                    }
+                },
+
                 startRefreshTimer: function() {
                     this.stopRefreshTimer();
                     this.refreshTimer = setInterval(function() {
-                        LiveSessionMonitor.refresh(false);
+                        if (!document.hidden) {
+                            LiveSessionMonitor.refresh(false);
+                        }
                     }, 15000);
                 },
 
@@ -1343,7 +1504,7 @@
                         var reasons = LiveSessionMonitor.formatReasons(session);
                         var itemName = nowPlaying.Name || 'Unknown item';
 
-                        listHtml += '<div style="padding: 14px; border-radius: 6px; border: 1px solid var(--theme-accent-text-color); margin-bottom: 10px;">';
+                        listHtml += '<div style="padding: 14px; border-radius: 6px; border: 1px solid var(--jf-palette-divider, hsla(0, 0%, 100%, 0.12)); margin-bottom: 10px;">';
                         listHtml += '<div style="font-size: 1.05em; font-weight: 600; margin-bottom: 8px;">' + LiveSessionMonitor.escapeHtml(itemName) + '</div>';
                         listHtml += '<div style="margin-bottom: 4px;"><strong>User:</strong> ' + LiveSessionMonitor.escapeHtml(userName) + '</div>';
                         listHtml += '<div style="margin-bottom: 4px;"><strong>Client:</strong> ' + LiveSessionMonitor.escapeHtml(client) + ' (' + LiveSessionMonitor.escapeHtml(device) + ')</div>';
@@ -1400,17 +1561,14 @@
 
             document.getElementById('TranscodeGuardConfigPage').addEventListener('pageshow', function () {
                 Dashboard.showLoadingMsg();
+                SettingsTabs.init();
+                FeatureSwitches.init();
                 ReasonSelector.init();
                 LiveSessionMonitor.init();
                 UserExclusionManager.init();
                 MotdUserExclusionManager.init();
-                MotdSection.init();
-                TranscodeLimitSection.init();
                 ConcurrentTranscodeLimitSection.init();
-                BrowserInstallNagSection.init();
-                GpuGuardSection.init();
                 PausedTranscodeUserExclusionManager.init();
-                PausedReaperSection.init();
                 ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function (config) {
                     document.getElementById('txtNagMessage').value = config.NagMessage || '';
                     document.getElementById('chkUseStickyPlaybackMessages').checked = config.UseStickyPlaybackMessages === true;
@@ -1459,15 +1617,10 @@
                     document.getElementById('txtPausedTranscodeWarningMessage').value = config.PausedTranscodeWarningMessage || '';
                     document.getElementById('chkUseStickyPausedTranscodeMessages').checked = config.UseStickyPausedTranscodeMessages === true;
                     document.getElementById('chkReapPausedDirectPlay').checked = config.ReapPausedDirectPlay === true;
-                    TranscodeLimitSection.updateVisibility();
-                    ConcurrentTranscodeLimitSection.updateVisibility();
-                    BrowserInstallNagSection.updateVisibility();
-                    MotdSection.updateVisibility();
-                    GpuGuardSection.updateVisibility();
-                    PausedReaperSection.updateVisibility();
+                    FeatureSwitches.updateAll();
                     ReasonSelector.render(config.AlertTranscodeReasons, config.ReasonMessageOverrides);
-                    LiveSessionMonitor.refresh(false, config);
-                    LiveSessionMonitor.startRefreshTimer();
+                    // Restarts the session monitor when the page comes back on its Live Sessions tab.
+                    SettingsTabs.show(SettingsTabs.current());
                     Dashboard.hideLoadingMsg();
                 });
             });
@@ -1475,8 +1628,17 @@
             document.getElementById('TranscodeGuardConfigForm').addEventListener('submit', function (e) {
                 e.preventDefault();
 
-                var browserInstallUrl = document.getElementById('txtBrowserInstallUrl').value.trim();
-                if (!BrowserInstallNagSection.isValidInstallUrl(browserInstallUrl)) {
+                var invalidField = SaveCheck.firstInvalidField();
+                if (invalidField) {
+                    SaveCheck.report(invalidField);
+                    return false;
+                }
+
+                var browserInstallUrlField = document.getElementById('txtBrowserInstallUrl');
+                var browserInstallUrl = browserInstallUrlField.value.trim();
+                if (!FeatureSwitches.isSwitchedOff(browserInstallUrlField) && !BrowserInstallNagSection.isValidInstallUrl(browserInstallUrl)) {
+                    SettingsTabs.showTabOf(browserInstallUrlField);
+                    browserInstallUrlField.focus();
                     Dashboard.alert('The browser install URL must be a full http:// or https:// link, or empty.');
                     return false;
                 }
@@ -1535,9 +1697,13 @@
                     config.AlertTranscodeReasons = ReasonSelector.getSelectedReasonNames();
                     config.ReasonMessageOverrides = ReasonSelector.getReasonMessageOverrides();
 
-                    ApiClient.updatePluginConfiguration(TranscodeGuardConfig.pluginId, config).then(function (result) {
+                    return ApiClient.updatePluginConfiguration(TranscodeGuardConfig.pluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
                     });
+                }).catch(function (error) {
+                    console.error('Failed to save Transcode Guard settings:', error);
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert('Failed to save the settings. Check the browser console for details.');
                 });
 
                 return false;
@@ -1719,7 +1885,7 @@
             });
 
             document.getElementById('TranscodeGuardConfigPage').addEventListener('pagehide', function() {
-                LiveSessionMonitor.stopRefreshTimer();
+                LiveSessionMonitor.setActive(false);
             });
         </script>
     </div>

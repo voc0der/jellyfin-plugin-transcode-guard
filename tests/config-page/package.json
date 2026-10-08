@@ -1,0 +1,13 @@
+{
+  "name": "transcode-guard-config-page-harness",
+  "version": "1.0.0",
+  "description": "Drives the Transcode Guard settings page inside a real Jellyfin and checks that every tab, button and Save still works.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
