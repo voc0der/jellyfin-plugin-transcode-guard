@@ -14,14 +14,14 @@
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/tree/main/tests">
     <img src="https://img.shields.io/badge/coverage-87%25-green" alt="Code coverage percentage" />
   </a>
+  <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/actions/workflows/codeql.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/voc0der/jellyfin-plugin-transcode-guard/codeql.yml?branch=main&label=codeql" alt="CodeQL status" />
+  </a>
   <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/issues">
     <img src="https://img.shields.io/github/issues/voc0der/jellyfin-plugin-transcode-guard?color=DAA520" alt="Open issues" />
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/github/license/voc0der/jellyfin-plugin-transcode-guard?color=97CA00" alt="License" />
-  </a>
-  <a href="https://github.com/voc0der/jellyfin-plugin-transcode-guard/blob/main/Jellyfin.Plugin.TranscodeGuard.csproj">
-    <img src="https://img.shields.io/badge/dependencies-0%20outdated-brightgreen" alt="Dependencies status" />
   </a>
 </p>
 
