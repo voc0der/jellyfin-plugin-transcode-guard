@@ -97,6 +97,7 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
     [Fact]
     public async Task Playback_RecordsTheTranscodeAndSendsTheConfiguredWarning()
     {
+        _config.NagHeader = "Heads up";
         _config.NagMessage = "Use a compatible client.";
         _config.MessageTimeoutMs = 4321;
         _config.UseStickyPlaybackMessages = true;
@@ -105,7 +106,7 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
 
         var delivery = Assert.Single(_messages.Deliveries);
         Assert.Same(_session, delivery.Session);
-        Assert.Equal("Transcoding Detected", delivery.Command.Header);
+        Assert.Equal("Heads up", delivery.Command.Header);
         Assert.Equal(_config.NagMessage, delivery.Command.Text);
         Assert.Equal(4321, delivery.Command.TimeoutMs);
         Assert.True(delivery.Sticky);
@@ -117,6 +118,18 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
         Assert.Equal(_session.Client, recorded.Client);
         Assert.Equal(TranscodeReason.VideoCodecNotSupported, recorded.Reasons);
         Assert.False(recorded.IsLiveTv);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Playback_BlankTitleFallsBackToTheDefault(string title)
+    {
+        _config.NagHeader = title;
+
+        await StartPlaybackAsync();
+
+        Assert.Equal("Transcoding Detected", Assert.Single(_messages.Deliveries).Command.Header);
     }
 
     [Fact]
@@ -303,6 +316,7 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
     public async Task Motd_SendsOncePerSessionAndCancelsOnSessionEnd()
     {
         _config.EnableMotd = true;
+        _config.MotdHeader = "Server news";
         _config.MotdMessage = "Maintenance tonight.";
         _config.UseStickyMotdMessages = true;
         _config.MessageTimeoutMs = 8765;
@@ -311,7 +325,7 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
         await ConnectAsync();
 
         var delivery = Assert.Single(_messages.Deliveries);
-        Assert.Equal("Message of the Day", delivery.Command.Header);
+        Assert.Equal("Server news", delivery.Command.Header);
         Assert.Equal(_config.MotdMessage, delivery.Command.Text);
         Assert.Equal(8765, delivery.Command.TimeoutMs);
         Assert.True(delivery.Sticky);
@@ -402,6 +416,7 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
         _config.EnableLoginNag = true;
         _config.LoginNagThreshold = 2;
         _config.LoginNagTimeWindow = window;
+        _config.LoginNagHeader = "Your transcodes";
         _config.LoginNagMessage = "{{transcodes}} transcodes in the last {{timewindow}}.";
         _config.UseStickyLoginNagMessages = true;
         _config.MessageTimeoutMs = 6789;
@@ -411,7 +426,7 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
         await ConnectAsync();
 
         var delivery = Assert.Single(_messages.Deliveries);
-        Assert.Equal("Transcoding Alert", delivery.Command.Header);
+        Assert.Equal("Your transcodes", delivery.Command.Header);
         Assert.Equal($"2 transcodes in the last {expectedWindow}.", delivery.Command.Text);
         Assert.Equal(6789, delivery.Command.TimeoutMs);
         Assert.True(delivery.Sticky);
