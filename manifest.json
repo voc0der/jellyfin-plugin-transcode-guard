@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.54",
+        "changelog": "## What's Changed\n\n- docs(screenshots): show the new title fields (5a52470)\n- feat(messages): let admins set the playback nag, login nag and MOTD titles (e07691b)\n- chore(deps): update github/codeql-action action to v4.39.0 (#79) (8167e9f)\n- chore(deps): update all non-major dependencies to 10.0.13 (#78) (fa8f41a)\n- chore(deps): update dependency microsoft.net.test.sdk to 18.11.0 (#77) (fdb17c4)\n- chore(deps): update renovatebot/github-action action to v46.3.8 (#76) (6c95f55)\n- fix(docs): align README badges with Session Provisioning (a659230)\n- chore(deps): update all non-major dependencies (#74) (dd8173c)\n- chore(deps): update github/codeql-action action to v4.38.3 (#73) (02fb49e)\n- test(playback): cover monitor notifications and refresh coverage badge (9450b24)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.53...v1.0.1.54\n",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/download/v1.0.1.54/Transcode_Guard_v1.0.1.54.zip",
+        "checksum": "bce18144e8e32c6b71e423d70d7b923e",
+        "timestamp": "2026-10-18T21:36:52Z"
+      },
+      {
         "version": "1.0.1.53",
         "changelog": "## What's Changed\n\n- docs(screenshots): one shot per settings tab (5cfff61)\n- test(config): drive the settings page in a real Jellyfin (35bb583)\n- feat(config): split the settings page into tabs (6021500)\n- chore(deps): update renovatebot/github-action action to v46.3.7 (#70) (93821a6)\n- chore(deps): update renovatebot/github-action action to v46.3.6 (#69) (60813ad)\n- chore(deps): update renovatebot/github-action action to v46.3.5 (#68) (dd04348)\n- docs(contributing): stop naming a specific AI in the LLM disclosure (1098321)\n- chore(deps): move the tests to xunit.v3 (7f98d11)\n- chore(deps): hold Jellyfin updates for approval on the Dependency Dashboard (21f28a7)\n- chore(deps): check osv.dev and Dependabot alerts for vulnerabilities (66e79e2)\n- chore(deps): note that security fixes now come from Renovate (d6ceed5)\n- chore(deps): update renovatebot/github-action action to v46.3.4 (#60) (e5fd123)\n- chore(deps): move dependency updates from Dependabot to Renovate (a3fc5dd)\n- docs(readme): add a Jellyfin version badge (af9c525)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.52...v1.0.1.53\n",
         "targetAbi": "12.0.0.0",
