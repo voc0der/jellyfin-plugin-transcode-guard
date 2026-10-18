@@ -33,6 +33,8 @@ public class PluginConfiguration : BasePluginConfiguration
         return (string[])DefaultAlertReasons.Clone();
     }
 
+    public string NagHeader { get; set; } = "Transcoding Detected";
+
     public string NagMessage { get; set; } = "Your client is transcoding because it doesn't support the video format. Consider using a client that supports direct play (like mpv, VLC, or Jellyfin Media Player) to reduce server load and improve quality!";
 
     public bool UseStickyPlaybackMessages { get; set; } = false;
@@ -50,6 +52,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool ExcludeLiveTv { get; set; } = false;
 
     public string LoginNagTimeWindow { get; set; } = "Week";
+
+    public string LoginNagHeader { get; set; } = "Transcoding Alert";
 
     public string LoginNagMessage { get; set; } = "You've transcoded {{transcodes}} videos in the last {{timewindow}} due to unsupported formats. Consider switching to mpv, VLC, or Jellyfin Media Player to improve quality and reduce server load!";
 
@@ -151,6 +155,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public string[] ExcludedUserIds { get; set; } = Array.Empty<string>();
 
     public bool EnableMotd { get; set; } = false;
+
+    public string MotdHeader { get; set; } = "Message of the Day";
 
     public string MotdMessage { get; set; } = "Welcome back! Check the announcements channel for server news and planned maintenance.";
 

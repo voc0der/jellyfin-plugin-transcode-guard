@@ -48,7 +48,7 @@ sample rate, video range, and direct play errors.
 
 | Setting | Does | Default |
 | --- | --- | --- |
-| Nag Message | What the popup says | Generic "use a client that direct plays" text |
+| Nag Title / Nag Message | What the popup says | "Transcoding Detected", then generic "use a client that direct plays" text |
 | Delay Before Check (seconds) | How long to wait after playback starts before reading transcode info — Jellyfin doesn't populate it instantly | 5 |
 | Message Timeout (ms) | How long the popup stays up | 10000 |
 | Playback Trigger Reasons | Which reasons nag | The compatibility set above |
@@ -121,7 +121,7 @@ recent history and, past a threshold, tells them how bad it's got.
 | --- | --- | --- |
 | Login Nag Threshold | Bad transcodes needed to trigger | 5 |
 | Login Nag Time Window | How far back to count: Week or Month | Week |
-| Login Nag Message | Supports `{{transcodes}}` and `{{timewindow}}` | Generic text |
+| Login Nag Title / Login Nag Message | What the popup says. The message supports `{{transcodes}}` and `{{timewindow}}` | "Transcoding Alert", then generic text |
 
 **Two things stop it becoming noise.**
 
@@ -307,7 +307,7 @@ next attempt works, with no setting change or restart.
 An announcement sent once per session at login. Maintenance windows, new
 library, whatever.
 
-Entirely unrelated to transcode history. It has its own message, its own
+Entirely unrelated to transcode history. It has its own title and message, its own
 exclusion list, and its own client filters, none of which are shared with the
 nags — so you can announce to everyone while nagging only browser users, or the
 reverse.
@@ -387,6 +387,8 @@ Timeout.
 | `{{limit}}` | Blocked messages | The configured limit, or the user's simultaneous maximum |
 | `{{active}}` | Simultaneous blocked message | How many of their other devices are transcoding |
 | `{{minutes}}` | Paused transcode warning | Minutes until the stream is stopped |
+
+Placeholders work in messages, not titles. A title left blank falls back to its default.
 
 ### Logging
 

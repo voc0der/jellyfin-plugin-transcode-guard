@@ -80,6 +80,12 @@
                             limit and the browser install warning.
                         </div>
 
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtNagHeader">Nag Title:</label>
+                            <input type="text" id="txtNagHeader" name="txtNagHeader" class="emby-input" />
+                            <div class="fieldDescription">Title of the playback popup. Jellyfin Web's popup shows only the message. With the browser install warning on, browsers use the Browser Warning tab's title instead.</div>
+                        </div>
+
                         <div class="selectContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtNagMessage">Nag Message:</label>
                             <textarea id="txtNagMessage" name="txtNagMessage" rows="4" class="emby-input"></textarea>
@@ -238,6 +244,12 @@
                                 <option value="Month">Month</option>
                             </select>
                             <div class="fieldDescription">Check transcode history for the last week or month.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtLoginNagHeader">Login Nag Title:</label>
+                            <input type="text" id="txtLoginNagHeader" name="txtLoginNagHeader" class="emby-input" />
+                            <div class="fieldDescription">Title of the login popup. Jellyfin Web's popup shows only the message.</div>
                         </div>
 
                         <div class="selectContainer">
@@ -506,6 +518,12 @@
                         </div>
 
                         <div id="motdOptions" data-feature-switch="chkEnableMotd" style="display: none;">
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtMotdHeader">MOTD Title:</label>
+                                <input type="text" id="txtMotdHeader" name="txtMotdHeader" class="emby-input" />
+                                <div class="fieldDescription">Title of the MOTD popup. Jellyfin Web's popup shows only the message.</div>
+                            </div>
+
                             <div class="selectContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="txtMotdMessage">MOTD Message:</label>
                                 <textarea id="txtMotdMessage" name="txtMotdMessage" rows="4" class="emby-input"></textarea>
@@ -1570,6 +1588,7 @@
                 ConcurrentTranscodeLimitSection.init();
                 PausedTranscodeUserExclusionManager.init();
                 ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function (config) {
+                    document.getElementById('txtNagHeader').value = config.NagHeader || '';
                     document.getElementById('txtNagMessage').value = config.NagMessage || '';
                     document.getElementById('chkUseStickyPlaybackMessages').checked = config.UseStickyPlaybackMessages === true;
                     document.getElementById('txtDelaySeconds').value = config.DelaySeconds || 5;
@@ -1581,6 +1600,7 @@
                     document.getElementById('chkEnableLoginNag').checked = config.EnableLoginNag !== false;
                     document.getElementById('txtLoginNagThreshold').value = config.LoginNagThreshold || 5;
                     document.getElementById('selectLoginNagTimeWindow').value = config.LoginNagTimeWindow || 'Week';
+                    document.getElementById('txtLoginNagHeader').value = config.LoginNagHeader || '';
                     document.getElementById('txtLoginNagMessage').value = config.LoginNagMessage || '';
                     document.getElementById('chkUseStickyLoginNagMessages').checked = config.UseStickyLoginNagMessages === true;
                     document.getElementById('chkEnableTranscodeLimit').checked = config.EnableTranscodeLimit === true;
@@ -1599,6 +1619,7 @@
                     document.getElementById('txtBrowserNagMessage').value = config.BrowserNagMessage || '';
                     document.getElementById('txtBrowserNagAutoCloseSeconds').value = config.BrowserNagAutoCloseSeconds || BrowserInstallNagSection.defaultAutoCloseSeconds;
                     document.getElementById('chkEnableMotd').checked = config.EnableMotd === true;
+                    document.getElementById('txtMotdHeader').value = config.MotdHeader || '';
                     document.getElementById('txtMotdMessage').value = config.MotdMessage || '';
                     document.getElementById('chkUseStickyMotdMessages').checked = config.UseStickyMotdMessages === true;
                     document.getElementById('txtMotdIncludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.MotdIncludedClientPatterns);
@@ -1646,6 +1667,7 @@
                 Dashboard.showLoadingMsg();
 
                 ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function (config) {
+                    config.NagHeader = document.getElementById('txtNagHeader').value;
                     config.NagMessage = document.getElementById('txtNagMessage').value;
                     config.UseStickyPlaybackMessages = document.getElementById('chkUseStickyPlaybackMessages').checked;
                     config.DelaySeconds = parseInt(document.getElementById('txtDelaySeconds').value);
@@ -1657,6 +1679,7 @@
                     config.EnableLoginNag = document.getElementById('chkEnableLoginNag').checked;
                     config.LoginNagThreshold = parseInt(document.getElementById('txtLoginNagThreshold').value);
                     config.LoginNagTimeWindow = document.getElementById('selectLoginNagTimeWindow').value;
+                    config.LoginNagHeader = document.getElementById('txtLoginNagHeader').value;
                     config.LoginNagMessage = document.getElementById('txtLoginNagMessage').value;
                     config.UseStickyLoginNagMessages = document.getElementById('chkUseStickyLoginNagMessages').checked;
                     config.EnableTranscodeLimit = document.getElementById('chkEnableTranscodeLimit').checked;
@@ -1676,6 +1699,7 @@
                     config.BrowserNagMessage = document.getElementById('txtBrowserNagMessage').value;
                     config.BrowserNagAutoCloseSeconds = BrowserInstallNagSection.readAutoCloseSeconds();
                     config.EnableMotd =document.getElementById('chkEnableMotd').checked;
+                    config.MotdHeader = document.getElementById('txtMotdHeader').value;
                     config.MotdMessage = document.getElementById('txtMotdMessage').value;
                     config.UseStickyMotdMessages = document.getElementById('chkUseStickyMotdMessages').checked;
                     config.MotdIncludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtMotdIncludedClientPatterns').value);

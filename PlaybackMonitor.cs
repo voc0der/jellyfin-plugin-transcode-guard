@@ -20,6 +20,11 @@ public class PlaybackMonitor : IHostedService
 {
     private const string PlaybackNagMessageContext = "playback nag";
 
+    // Used when an admin blanks a title, so every popup still has one.
+    private const string DefaultNagHeader = "Transcoding Detected";
+    private const string DefaultLoginNagHeader = "Transcoding Alert";
+    private const string DefaultMotdHeader = "Message of the Day";
+
     private readonly ISessionManager _sessionManager;
     private readonly IClientMessageService _clientMessageService;
     private readonly ILogger<PlaybackMonitor> _logger;
@@ -345,6 +350,9 @@ public class PlaybackMonitor : IHostedService
         return overrideMatch?.Message ?? config.NagMessage;
     }
 
+    private static string Fallback(string? configured, string defaultText)
+        => string.IsNullOrWhiteSpace(configured) ? defaultText : configured;
+
     private async Task<bool> SendNagMessageAsync(SessionInfo session, Configuration.PluginConfiguration config)
     {
         if (session.Id == null)
@@ -372,7 +380,7 @@ public class PlaybackMonitor : IHostedService
             config,
             new MessageCommand
             {
-                Header = "Transcoding Detected",
+                Header = Fallback(config.NagHeader, DefaultNagHeader),
                 Text = ResolveNagMessage(session, config),
                 TimeoutMs = config.MessageTimeoutMs
             },
@@ -686,7 +694,7 @@ public class PlaybackMonitor : IHostedService
                 config,
                 new MessageCommand
                 {
-                    Header = "Message of the Day",
+                    Header = Fallback(config.MotdHeader, DefaultMotdHeader),
                     Text = config.MotdMessage,
                     TimeoutMs = config.MessageTimeoutMs
                 },
@@ -776,7 +784,7 @@ public class PlaybackMonitor : IHostedService
             config,
             new MessageCommand
             {
-                Header = "Transcoding Alert",
+                Header = Fallback(config.LoginNagHeader, DefaultLoginNagHeader),
                 Text = message,
                 TimeoutMs = config.MessageTimeoutMs
             },

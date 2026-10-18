@@ -29,6 +29,7 @@ export const ALL_REASONS = [
 // values behind a collapsed feature still save.
 export function configA(users) {
     return {
+        NagHeader: 'Harness A playback title',
         NagMessage: 'Harness A: this video is being transcoded.',
         UseStickyPlaybackMessages: true,
         MessageTimeoutMs: 12000,
@@ -38,6 +39,7 @@ export function configA(users) {
         LoginNagThreshold: 6,
         ExcludeLiveTv: true,
         LoginNagTimeWindow: 'Month',
+        LoginNagHeader: 'Harness A login title',
         LoginNagMessage: 'Harness A: {{transcodes}} transcodes in the last {{timewindow}}.',
         UseStickyLoginNagMessages: false,
         EnableTranscodeLimit: true,
@@ -67,6 +69,7 @@ export function configA(users) {
         ExcludedClientPatterns: ['Kodi', 'Roku'],
         ExcludedUserIds: [users.guest],
         EnableMotd: true,
+        MotdHeader: 'Harness A MOTD title',
         MotdMessage: 'Harness A message of the day.',
         UseStickyMotdMessages: true,
         MotdExcludedUserIds: [],
@@ -95,6 +98,7 @@ export function configA(users) {
 export function configB(users) {
     return {
         ...configA(users),
+        NagHeader: 'Harness B playback title',
         NagMessage: 'Harness B: still transcoding.',
         UseStickyPlaybackMessages: false,
         MessageTimeoutMs: 15000,
@@ -104,6 +108,7 @@ export function configB(users) {
         LoginNagThreshold: 8,
         ExcludeLiveTv: false,
         LoginNagTimeWindow: 'Week',
+        LoginNagHeader: 'Harness B login title',
         LoginNagMessage: 'Harness B: {{transcodes}} this {{timewindow}}.',
         UseStickyLoginNagMessages: true,
         EnableTranscodeLimit: false,
@@ -134,6 +139,7 @@ export function configB(users) {
         IncludedClientPatterns: ['browser', 'Jellyfin Media Player'],
         ExcludedClientPatterns: [],
         EnableMotd: false,
+        MotdHeader: 'Harness B MOTD title',
         MotdMessage: 'Harness B message of the day.',
         UseStickyMotdMessages: false,
         MotdIncludedClientPatterns: [],
@@ -169,6 +175,7 @@ export const TYPED_FOR_B = {
 // is a feature's on/off switch: it shows and hides `options`, and is set last in its tab so the
 // fields it would hide have been filled first.
 export const FIELDS = [
+    { tab: 'playback', id: 'txtNagHeader', prop: 'NagHeader', kind: 'text' },
     { tab: 'playback', id: 'txtNagMessage', prop: 'NagMessage', kind: 'text' },
     { tab: 'playback', id: 'chkUseStickyPlaybackMessages', prop: 'UseStickyPlaybackMessages', kind: 'checkbox' },
     { tab: 'playback', id: 'txtDelaySeconds', prop: 'DelaySeconds', kind: 'number' },
@@ -186,6 +193,7 @@ export const FIELDS = [
 
     { tab: 'login', id: 'txtLoginNagThreshold', prop: 'LoginNagThreshold', kind: 'number' },
     { tab: 'login', id: 'selectLoginNagTimeWindow', prop: 'LoginNagTimeWindow', kind: 'select' },
+    { tab: 'login', id: 'txtLoginNagHeader', prop: 'LoginNagHeader', kind: 'text' },
     { tab: 'login', id: 'txtLoginNagMessage', prop: 'LoginNagMessage', kind: 'text' },
     { tab: 'login', id: 'chkUseStickyLoginNagMessages', prop: 'UseStickyLoginNagMessages', kind: 'checkbox' },
     { tab: 'login', id: 'chkEnableLoginNag', prop: 'EnableLoginNag', kind: 'checkbox' },
@@ -218,6 +226,7 @@ export const FIELDS = [
     { tab: 'reaper', id: 'chkReapPausedDirectPlay', prop: 'ReapPausedDirectPlay', kind: 'checkbox' },
     { tab: 'reaper', id: 'chkEnablePausedTranscodeReaper', prop: 'EnablePausedTranscodeReaper', kind: 'toggle', options: 'pausedReaperOptions' },
 
+    { tab: 'motd', id: 'txtMotdHeader', prop: 'MotdHeader', kind: 'text' },
     { tab: 'motd', id: 'txtMotdMessage', prop: 'MotdMessage', kind: 'text' },
     { tab: 'motd', id: 'chkUseStickyMotdMessages', prop: 'UseStickyMotdMessages', kind: 'checkbox' },
     { tab: 'motd', id: 'txtMotdIncludedClientPatterns', prop: 'MotdIncludedClientPatterns', kind: 'patterns' },

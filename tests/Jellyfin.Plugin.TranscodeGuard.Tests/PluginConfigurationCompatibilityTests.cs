@@ -73,6 +73,25 @@ public class PluginConfigurationCompatibilityTests
     }
 
     [Fact]
+    public void ConfigurationSavedBeforeTitlesWereEditableKeepsTheOldTitles()
+    {
+        const string LegacyXml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <PluginConfiguration>
+              <NagMessage>Use mpv.</NagMessage>
+            </PluginConfiguration>
+            """;
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+
+        using var reader = new StringReader(LegacyXml);
+        var config = Assert.IsType<PluginConfiguration>(serializer.Deserialize(reader));
+
+        Assert.Equal("Transcoding Detected", config.NagHeader);
+        Assert.Equal("Transcoding Alert", config.LoginNagHeader);
+        Assert.Equal("Message of the Day", config.MotdHeader);
+    }
+
+    [Fact]
     public void TranscodeLimitIsOptInAndSitsAboveTheDefaultLoginNagThreshold()
     {
         var config = new PluginConfiguration();
