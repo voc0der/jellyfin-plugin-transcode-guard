@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.55",
+        "changelog": "## What's Changed\n\n- chore(deps): update dependency node to v26 (#87) (4682aa0)\n- chore(deps): update renovatebot/github-action action to v46.3.10 (#86) (38e8024)\n- chore(deps): update all non-major dependencies to 10.0.14 (#85) (b12968f)\n- chore(deps): update github/codeql-action action to v4.39.1 (#84) (4888c95)\n- chore(deps): update renovatebot/github-action action to v46.3.9 (#83) (aeb8d95)\n- docs(readme): add since badge (66cdd26)\n- fix(icon): use shared Obsidian folds artwork (84b40b9)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.54...v1.0.1.55\n",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/download/v1.0.1.55/Transcode_Guard_v1.0.1.55.zip",
+        "checksum": "0a8b5e98620ced33b212bdb48b803121",
+        "timestamp": "2026-10-30T12:36:01Z"
+      },
+      {
         "version": "1.0.1.54",
         "changelog": "## What's Changed\n\n- docs(screenshots): show the new title fields (5a52470)\n- feat(messages): let admins set the playback nag, login nag and MOTD titles (e07691b)\n- chore(deps): update github/codeql-action action to v4.39.0 (#79) (8167e9f)\n- chore(deps): update all non-major dependencies to 10.0.13 (#78) (fa8f41a)\n- chore(deps): update dependency microsoft.net.test.sdk to 18.11.0 (#77) (fdb17c4)\n- chore(deps): update renovatebot/github-action action to v46.3.8 (#76) (6c95f55)\n- fix(docs): align README badges with Session Provisioning (a659230)\n- chore(deps): update all non-major dependencies (#74) (dd8173c)\n- chore(deps): update github/codeql-action action to v4.38.3 (#73) (02fb49e)\n- test(playback): cover monitor notifications and refresh coverage badge (9450b24)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.53...v1.0.1.54\n",
         "targetAbi": "12.0.0.0",
