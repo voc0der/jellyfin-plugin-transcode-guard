@@ -125,21 +125,12 @@ public sealed class PrerollIntroProvider : IIntroProvider, IDisposable
             return Array.Empty<IntroInfo>();
         }
 
-        var candidates = new List<PrerollCandidate>();
-        foreach (var path in PrerollRules.ListPrerollFiles(config.PrerollFolder))
-        {
-            var video = GetOrCreateItem(path);
-            if (video == null || !video.IsVisibleStandalone(user))
-            {
-                continue;
-            }
-
-            var data = _userDataManager.GetUserData(user, video);
-            candidates.Add(new PrerollCandidate(
-                video.Id,
-                Seen: data != null && (data.PlayCount > 0 || data.Played),
-                LastSeen: data?.LastPlayedDate));
-        }
+        var candidates = PrerollRules.ListPrerollFiles(config.PrerollFolder)
+            .Select(GetOrCreateItem)
+            .OfType<Video>()
+            .Where(video => video.IsVisibleStandalone(user))
+            .Select(video => ToCandidate(user, video))
+            .ToList();
 
         var picked = PrerollRules.Pick(candidates, config.PrerollOncePerUser, config.PrerollPlayAll, config.PrerollRandom, Random.Shared);
         if (picked.Count == 0)
@@ -165,6 +156,15 @@ public sealed class PrerollIntroProvider : IIntroProvider, IDisposable
         }
 
         return picked.Select(candidate => new IntroInfo { ItemId = candidate.Id }).ToArray();
+    }
+
+    private PrerollCandidate ToCandidate(User user, Video video)
+    {
+        var data = _userDataManager.GetUserData(user, video);
+        return new PrerollCandidate(
+            video.Id,
+            Seen: data != null && (data.PlayCount > 0 || data.Played),
+            LastSeen: data?.LastPlayedDate);
     }
 
     private Video? GetOrCreateItem(string path)
