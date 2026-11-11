@@ -3,6 +3,7 @@ using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using Jellyfin.Plugin.TranscodeGuard.Models;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
@@ -53,6 +54,29 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
         {
             Directory.Delete(_pluginPath, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task PlaybackStart_NeverNagsAboutAPreroll()
+    {
+        _config.EnablePrerolls = true;
+        _config.PrerollFolder = Path.Join(_pluginPath, "prerolls");
+
+        await _sessions.RaiseAsync(nameof(ISessionManager.PlaybackStart), new PlaybackProgressEventArgs
+        {
+            Session = _session,
+            Item = new Video { Path = Path.Join(_config.PrerollFolder, "01-welcome.mp4") }
+        });
+        Assert.Empty(_messages.Deliveries);
+        Assert.Empty(await UserEventsAsync());
+
+        // The same transcode on a video the user picked is still nagged.
+        await _sessions.RaiseAsync(nameof(ISessionManager.PlaybackStart), new PlaybackProgressEventArgs
+        {
+            Session = _session,
+            Item = new Video { Path = Path.Join(_pluginPath, "movies", "movie.mkv") }
+        });
+        Assert.Single(_messages.Deliveries);
     }
 
     [Fact]

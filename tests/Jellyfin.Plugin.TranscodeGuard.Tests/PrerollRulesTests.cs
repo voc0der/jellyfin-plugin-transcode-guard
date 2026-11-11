@@ -47,6 +47,14 @@ public sealed class PrerollRulesTests : IDisposable
     }
 
     [Fact]
+    public void AnUnusablePathIsNoPrerollRatherThanAnError()
+    {
+        Assert.Empty(PrerollRules.ListPrerollFiles("bad\0folder"));
+        Assert.False(PrerollRules.IsInFolder(Path.Join(_folder, "a\0.mp4"), _folder));
+        Assert.False(PrerollRules.IsInFolder(Path.Join(_folder, "a.mp4"), "bad\0folder"));
+    }
+
+    [Fact]
     public void OnlyPathsInsideTheFolderCountAsPrerolls()
     {
         var root = Path.Join(_folder, "prerolls");
