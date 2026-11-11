@@ -210,7 +210,10 @@ public sealed class PrerollIntroProvider : IIntroProvider, IDisposable
             new MetadataRefreshOptions(new DirectoryService(_fileSystem))
             {
                 MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
-                ImageRefreshMode = MetadataRefreshMode.FullRefresh
+
+                // Nothing shows a pre-roll's artwork, and grabbing a frame from a short clip
+                // only fills the log with screen-grabber errors.
+                ImageRefreshMode = MetadataRefreshMode.ValidationOnly
             },
             RefreshPriority.High);
     }
