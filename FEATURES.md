@@ -69,23 +69,33 @@ and the transcode limit.
 
 ## Pre-rolls
 
-Short videos from a folder on the server, played before any video a user
-starts, like the pre-roll at a cinema. Point **Pre-roll Folder** at a folder
+Short videos from a folder on the server, played before a video starts, like
+the pre-roll at a cinema. Point **Pre-roll Folder** at a folder
 Jellyfin can read. Its videos play in file-name order, so `01-`, `02-` prefixes
 set it. The folder is read on every playback, so you can add or remove files at
 any time without saving anything. H.264/AAC MP4 plays on every client without a
 transcode.
 
-**Only clients with Jellyfin's cinema mode play them.** That covers Jellyfin Web,
-Desktop, Android and Android TV. Pre-rolls use Jellyfin's intro hook: the client
-asks for intros before it starts a video and plays them first. Each user can turn
-cinema mode off in their playback settings. Clients that never ask for intros
-never show pre-rolls, and Jellyfin Web skips them when resuming.
+**Only clients with Jellyfin's cinema mode play them, and each client decides
+when to ask.** Pre-rolls use Jellyfin's intro hook: the client asks for intros
+before it starts a video and plays them first. Each user can turn cinema mode
+off in their playback settings.
+
+- Jellyfin Web, Desktop and Android ask before any video, except when resuming.
+- The Android TV app asks only before movies, never before episodes, and not
+  when resuming. That is the app's own rule, tracked upstream as
+  [jellyfin-androidtv#2787](https://github.com/jellyfin/jellyfin-androidtv/issues/2787),
+  so no setting here can change it.
+- Clients that never ask for intros never show pre-rolls.
+
+Only a playback that gets pre-rolls counts toward **Pre-rolls per Session**: an
+episode on Android TV uses up nothing, while a pre-roll that was handed out
+counts even if the viewer skips it.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | Chance of Pre-rolls (%) | 100 | How likely each playback is to get pre-rolls at all. |
-| Pre-rolls per Session | 1 | How many times one session gets pre-rolls. After that, videos play straight through until the user signs in again. 0 means no limit. |
+| Pre-rolls per Session | 1 | How many times one session gets pre-rolls. After that, videos play straight through until the app reconnects or the user signs in again. 0 means no limit. |
 | Show each pre-roll once per user | Off | A pre-roll the user has seen (started) never plays for them again. Once they have seen them all, nothing plays. |
 | Play all pre-rolls in order | Off | Plays every pre-roll back to back. Off plays one: the one the user saw longest ago, so the folder is worked through in order rather than the first file repeating. |
 | Random | Off | Picks the pre-roll at random. With play all, shuffles the order. |

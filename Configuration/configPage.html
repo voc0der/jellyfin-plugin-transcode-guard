@@ -179,10 +179,11 @@
                     <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelPrerolls" data-tab="prerolls" aria-labelledby="transcodeGuardTabPrerolls" hidden>
                         <h2>Pre-rolls</h2>
                         <div class="fieldDescription" style="margin-bottom: 12px;">
-                            Play short videos from a folder on the server before any video a user starts, like the
-                            pre-roll at a cinema. They play on clients with Jellyfin's cinema mode (Jellyfin Web,
-                            Desktop, Android and Android TV), where each user can turn it off in their playback
-                            settings. Other clients never ask for them, and Jellyfin Web skips them when resuming.
+                            Play short videos from a folder on the server before a video starts, like the pre-roll
+                            at a cinema. Only clients with Jellyfin's cinema mode ask for them, and each user can
+                            turn it off in their playback settings. Jellyfin Web, Desktop and Android ask before
+                            any video, but the Android TV app only asks before movies. Other clients never ask,
+                            and a resumed video never gets them.
                         </div>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
@@ -209,7 +210,7 @@
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="txtPrerollSessionLimit">Pre-rolls per Session:</label>
                                 <input type="number" id="txtPrerollSessionLimit" name="txtPrerollSessionLimit" min="0" max="1000" class="emby-input" />
-                                <div class="fieldDescription">How many times one session gets pre-rolls. After that, videos play straight through until the user signs in again. 0 means no limit.</div>
+                                <div class="fieldDescription">How many times one session gets pre-rolls. Only playbacks that get them count. After that, videos play straight through until the app reconnects or the user signs in again. 0 means no limit.</div>
                             </div>
 
                             <div class="checkboxContainer checkboxContainer-withDescription">

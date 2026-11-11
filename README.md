@@ -110,7 +110,7 @@ A Jellyfin plugin that intelligently nags users when they're transcoding due to 
 - Sends a playback nag when Jellyfin reports selected `TranscodeReasons`.
 - Ignores bitrate-only transcodes, so users lowering quality for bandwidth do not get warned.
 - Can turn the playback nag, GPU refusals and both transcode limits' blocks into a full warning with an install link for Jellyfin Web browser sessions (needs the JavaScript Injector plugin); every other client keeps the normal message.
-- Can play pre-rolls from a server folder before any video: one at a time or all in order, at random or in file order, at a set chance, a limited number of times per session, and optionally only once per user, with their own user exclusions and client filters.
+- Can play pre-rolls from a server folder before videos on cinema-mode clients (the Android TV app only asks before movies): one at a time or all in order, at random or in file order, at a set chance, a limited number of times per session, and optionally only once per user, with their own user exclusions and client filters.
 - Can exclude Live TV channel streams from playback nags and login nag history.
 - Can send a login nag when a user keeps hitting bad transcodes over the last week or month.
 - Can refuse a user's next transcode outright once that same count passes a second, higher limit, so heavy transcoders are warned before they are stopped.
