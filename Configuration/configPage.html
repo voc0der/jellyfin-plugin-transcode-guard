@@ -62,6 +62,7 @@
                 <form id="TranscodeGuardConfigForm" novalidate>
                     <div class="transcodeGuardTabs" role="tablist" aria-label="Transcode Guard settings">
                         <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabPlayback" data-tab="playback" aria-controls="transcodeGuardPanelPlayback" aria-selected="true" tabindex="0">Playback</button>
+                        <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabPrerolls" data-tab="prerolls" aria-controls="transcodeGuardPanelPrerolls" aria-selected="false" tabindex="-1">Pre-rolls</button>
                         <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabBrowser" data-tab="browser" aria-controls="transcodeGuardPanelBrowser" aria-selected="false" tabindex="-1">Browser Warning</button>
                         <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabLogin" data-tab="login" aria-controls="transcodeGuardPanelLogin" aria-selected="false" tabindex="-1">Login Nag</button>
                         <button type="button" class="transcodeGuardTab" role="tab" id="transcodeGuardTabLimit" data-tab="limit" aria-controls="transcodeGuardPanelLimit" aria-selected="false" tabindex="-1">Transcode Limit</button>
@@ -172,6 +173,90 @@
                             <button is="emby-button" type="button" id="btnManageExclusions" class="raised block emby-button">
                                 <span>Manage Excluded Users</span>
                             </button>
+                        </div>
+                    </div>
+
+                    <div class="transcodeGuardPanel" role="tabpanel" id="transcodeGuardPanelPrerolls" data-tab="prerolls" aria-labelledby="transcodeGuardTabPrerolls" hidden>
+                        <h2>Pre-rolls</h2>
+                        <div class="fieldDescription" style="margin-bottom: 12px;">
+                            Play short videos from a folder on the server before any video a user starts, like the
+                            pre-roll at a cinema. They play on clients with Jellyfin's cinema mode (Jellyfin Web,
+                            Desktop, Android and Android TV), where each user can turn it off in their playback
+                            settings. Other clients never ask for them, and Jellyfin Web skips them when resuming.
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" is="emby-checkbox" id="chkEnablePrerolls" name="chkEnablePrerolls" />
+                                <span>Enable pre-rolls</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. A pre-roll is never nagged about and never counts toward the login nag.</div>
+                        </div>
+
+                        <div id="prerollOptions" data-feature-switch="chkEnablePrerolls" style="display: none;">
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPrerollFolder">Pre-roll Folder:</label>
+                                <input type="text" id="txtPrerollFolder" name="txtPrerollFolder" class="emby-input" />
+                                <div class="fieldDescription">A folder on the server that Jellyfin can read, for example /media/prerolls. Its videos play in file-name order, so name them 01-, 02- to set it. The folder is read on every playback, so files can be added or removed at any time. H.264/AAC MP4 plays on every client without transcoding.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPrerollChancePercent">Chance of Pre-rolls (%):</label>
+                                <input type="number" id="txtPrerollChancePercent" name="txtPrerollChancePercent" min="0" max="100" class="emby-input" />
+                                <div class="fieldDescription">How likely each playback is to get pre-rolls. 100 means every time.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPrerollSessionLimit">Pre-rolls per Session:</label>
+                                <input type="number" id="txtPrerollSessionLimit" name="txtPrerollSessionLimit" min="0" max="1000" class="emby-input" />
+                                <div class="fieldDescription">How many times one session gets pre-rolls. After that, videos play straight through until the user signs in again. 0 means no limit.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkPrerollOncePerUser" name="chkPrerollOncePerUser" />
+                                    <span>Show each pre-roll once per user</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">A pre-roll the user has seen never plays for them again. Once they have seen them all, nothing plays.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkPrerollPlayAll" name="chkPrerollPlayAll" />
+                                    <span>Play all pre-rolls in order</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Plays every pre-roll back to back, in file-name order. Off plays one: the one the user saw longest ago, so the folder is worked through in order.</div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input type="checkbox" is="emby-checkbox" id="chkPrerollRandom" name="chkPrerollRandom" />
+                                    <span>Random</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Picks the pre-roll at random. With play all, shuffles the order instead.</div>
+                            </div>
+
+                            <div class="fieldDescription" style="margin-bottom: 10px;">
+                                Exclude specific users from pre-rolls. This list is separate from the nag exclusion list.
+                            </div>
+
+                            <div style="margin-bottom: 20px;">
+                                <button is="emby-button" type="button" id="btnManagePrerollExclusions" class="raised block emby-button">
+                                    <span>Manage Excluded Users (Pre-rolls)</span>
+                                </button>
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPrerollIncludedClientPatterns">Only Include Matching Clients (Pre-rolls):</label>
+                                <textarea id="txtPrerollIncludedClientPatterns" name="txtPrerollIncludedClientPatterns" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">Optional. If empty, every client gets pre-rolls. Enter one client match per line or comma.</div>
+                            </div>
+
+                            <div class="selectContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtPrerollExcludedClientPatterns">Exclude Matching Clients (Pre-rolls):</label>
+                                <textarea id="txtPrerollExcludedClientPatterns" name="txtPrerollExcludedClientPatterns" rows="3" class="emby-input"></textarea>
+                                <div class="fieldDescription">Optional. Matching clients never get pre-rolls. Excluded matches always win over includes.</div>
+                            </div>
                         </div>
                     </div>
 
@@ -644,6 +729,38 @@
                             <span>Save</span>
                         </button>
                         <button is="emby-button" type="button" id="btnCancelMotdExclusions" class="raised">
+                            <span>Cancel</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pre-roll User Exclusion Modal -->
+            <div id="prerollUserExclusionModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; overflow-y: auto;">
+                <div class="transcodeGuardModal">
+                    <h2>Select Users to Exclude from Pre-rolls</h2>
+                    <div class="fieldDescription" style="margin-bottom: 15px;">
+                        By default, all users get pre-rolls. Uncheck users to exclude them from pre-rolls only.
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+                        <button is="emby-button" type="button" id="btnPrerollUsersSelectAll" class="raised">
+                            <span>Select All</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnPrerollUsersResetDefaults" class="raised">
+                            <span>Reset Defaults</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnPrerollUsersClearAll" class="raised">
+                            <span>Clear All</span>
+                        </button>
+                    </div>
+                    <div id="prerollUserExclusionList" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+                        <!-- User checkboxes will be populated here -->
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button is="emby-button" type="button" id="btnSavePrerollExclusions" class="raised button-submit">
+                            <span>Save</span>
+                        </button>
+                        <button is="emby-button" type="button" id="btnCancelPrerollExclusions" class="raised">
                             <span>Cancel</span>
                         </button>
                     </div>
@@ -1587,6 +1704,7 @@
                 MotdUserExclusionManager.init();
                 ConcurrentTranscodeLimitSection.init();
                 PausedTranscodeUserExclusionManager.init();
+                PrerollUserExclusionManager.init();
                 ApiClient.getPluginConfiguration(TranscodeGuardConfig.pluginId).then(function (config) {
                     document.getElementById('txtNagHeader').value = config.NagHeader || '';
                     document.getElementById('txtNagMessage').value = config.NagMessage || '';
@@ -1613,6 +1731,15 @@
                     document.getElementById('txtConcurrentTranscodeLimitMessage').value = config.ConcurrentTranscodeLimitMessage || '';
                     document.getElementById('chkUseStickyConcurrentTranscodeLimitMessages').checked = config.UseStickyConcurrentTranscodeLimitMessages === true;
                     ConcurrentTranscodeLimitSection.load(config);
+                    document.getElementById('chkEnablePrerolls').checked = config.EnablePrerolls === true;
+                    document.getElementById('txtPrerollFolder').value = config.PrerollFolder || '';
+                    document.getElementById('txtPrerollChancePercent').value = PrerollSection.numberOrDefault(config.PrerollChancePercent, 100);
+                    document.getElementById('txtPrerollSessionLimit').value = PrerollSection.numberOrDefault(config.PrerollSessionLimit, 1);
+                    document.getElementById('chkPrerollOncePerUser').checked = config.PrerollOncePerUser === true;
+                    document.getElementById('chkPrerollPlayAll').checked = config.PrerollPlayAll === true;
+                    document.getElementById('chkPrerollRandom').checked = config.PrerollRandom === true;
+                    document.getElementById('txtPrerollIncludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.PrerollIncludedClientPatterns);
+                    document.getElementById('txtPrerollExcludedClientPatterns').value = ClientPatternEditor.formatPatterns(config.PrerollExcludedClientPatterns);
                     document.getElementById('chkEnableBrowserInstallNag').checked = config.EnableBrowserInstallNag === true;
                     document.getElementById('txtBrowserInstallUrl').value = config.BrowserInstallUrl || '';
                     document.getElementById('txtBrowserNagTitle').value = config.BrowserNagTitle || '';
@@ -1693,6 +1820,15 @@
                     config.ConcurrentTranscodeLimitHeader = document.getElementById('txtConcurrentTranscodeLimitHeader').value;
                     config.ConcurrentTranscodeLimitMessage = document.getElementById('txtConcurrentTranscodeLimitMessage').value;
                     config.UseStickyConcurrentTranscodeLimitMessages = document.getElementById('chkUseStickyConcurrentTranscodeLimitMessages').checked;
+                    config.EnablePrerolls = document.getElementById('chkEnablePrerolls').checked;
+                    config.PrerollFolder = document.getElementById('txtPrerollFolder').value.trim();
+                    config.PrerollChancePercent = PrerollSection.readNumber('txtPrerollChancePercent', 100);
+                    config.PrerollSessionLimit = PrerollSection.readNumber('txtPrerollSessionLimit', 1);
+                    config.PrerollOncePerUser = document.getElementById('chkPrerollOncePerUser').checked;
+                    config.PrerollPlayAll = document.getElementById('chkPrerollPlayAll').checked;
+                    config.PrerollRandom = document.getElementById('chkPrerollRandom').checked;
+                    config.PrerollIncludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtPrerollIncludedClientPatterns').value);
+                    config.PrerollExcludedClientPatterns = ClientPatternEditor.splitPatterns(document.getElementById('txtPrerollExcludedClientPatterns').value);
                     config.EnableBrowserInstallNag = document.getElementById('chkEnableBrowserInstallNag').checked;
                     config.BrowserInstallUrl = browserInstallUrl;
                     config.BrowserNagTitle = document.getElementById('txtBrowserNagTitle').value;
@@ -1907,6 +2043,32 @@
                 allIncludedMessage: 'Paused transcodes will now be stopped for all users.',
                 excludedMessageSuffix: ' user(s) excluded from the paused transcode reaper.'
             });
+
+            var PrerollUserExclusionManager = createUserExclusionManager({
+                modalId: 'prerollUserExclusionModal',
+                listId: 'prerollUserExclusionList',
+                openButtonId: 'btnManagePrerollExclusions',
+                saveButtonId: 'btnSavePrerollExclusions',
+                cancelButtonId: 'btnCancelPrerollExclusions',
+                selectAllButtonId: 'btnPrerollUsersSelectAll',
+                resetButtonId: 'btnPrerollUsersResetDefaults',
+                clearAllButtonId: 'btnPrerollUsersClearAll',
+                configProperty: 'PrerollExcludedUserIds',
+                allIncludedMessage: 'All users will now get pre-rolls.',
+                excludedMessageSuffix: ' user(s) excluded from pre-rolls.'
+            });
+
+            // Reads the pre-roll numbers. A saved 0 is real for both: never, and no limit.
+            var PrerollSection = {
+                readNumber: function(elementId, fallback) {
+                    var parsed = parseInt(document.getElementById(elementId).value, 10);
+                    return isNaN(parsed) || parsed < 0 ? fallback : parsed;
+                },
+
+                numberOrDefault: function(value, fallback) {
+                    return typeof value === 'number' && isFinite(value) && value >= 0 ? value : fallback;
+                }
+            };
 
             document.getElementById('TranscodeGuardConfigPage').addEventListener('pagehide', function() {
                 LiveSessionMonitor.setActive(false);
