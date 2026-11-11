@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/voc0der/jellyfin-plugin-transcode-guard/main/icon.png",
     "versions": [
       {
+        "version": "1.0.1.56",
+        "changelog": "## What's Changed\n\n- test(prerolls): cover the intro provider with scripted Jellyfin fakes (b847432)\n- fix(prerolls): map pre-roll files with Select (CodeQL cs/linq/missed-select) (8934db9)\n- docs(prerolls): document pre-rolls and refresh the coverage badge (22a4d4d)\n- docs(screenshots): add the Pre-rolls tab and refresh every shot for the new tab bar (1e464f4)\n- fix(prerolls): skip frame grabs when probing a pre-roll (cf3d8d2)\n- test(config-page): cover the Pre-rolls tab, its settings and its exclusion dialog (c42cf9f)\n- feat(prerolls): add the Pre-rolls settings tab after Playback (ec7d3e9)\n- feat(prerolls): play videos from a server folder as intros before playback (0dc2528)\n- chore(deps): update github/codeql-action action to v4.39.3 (#91) (40825cb)\n- chore(deps): update github/codeql-action action to v4.39.2 (#90) (072eedd)\n- chore(deps): update renovatebot/github-action action to v46.3.12 (#89) (6545a08)\n- chore(deps): update renovatebot/github-action action to v46.3.11 (#88) (02de909)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.55...v1.0.1.56\n",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/voc0der/jellyfin-plugin-transcode-guard/releases/download/v1.0.1.56/Transcode_Guard_v1.0.1.56.zip",
+        "checksum": "9a1f5f29d4183a1f64a2d3d74d13dc4b",
+        "timestamp": "2026-11-11T01:35:14Z"
+      },
+      {
         "version": "1.0.1.55",
         "changelog": "## What's Changed\n\n- chore(deps): update dependency node to v26 (#87) (4682aa0)\n- chore(deps): update renovatebot/github-action action to v46.3.10 (#86) (38e8024)\n- chore(deps): update all non-major dependencies to 10.0.14 (#85) (b12968f)\n- chore(deps): update github/codeql-action action to v4.39.1 (#84) (4888c95)\n- chore(deps): update renovatebot/github-action action to v46.3.9 (#83) (aeb8d95)\n- docs(readme): add since badge (66cdd26)\n- fix(icon): use shared Obsidian folds artwork (84b40b9)\n\n**Full Changelog**: https://github.com/voc0der/jellyfin-plugin-transcode-guard/compare/v1.0.1.54...v1.0.1.55\n",
         "targetAbi": "12.0.0.0",
