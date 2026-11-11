@@ -75,6 +75,16 @@ export function configA(users) {
         MotdExcludedUserIds: [],
         MotdIncludedClientPatterns: ['Android'],
         MotdExcludedClientPatterns: ['Swiftfin'],
+        EnablePrerolls: true,
+        PrerollFolder: '/media/prerolls-a',
+        PrerollChancePercent: 60,
+        PrerollSessionLimit: 3,
+        PrerollOncePerUser: true,
+        PrerollPlayAll: false,
+        PrerollRandom: true,
+        PrerollExcludedUserIds: [users.guest, users.livingroom],
+        PrerollIncludedClientPatterns: ['Jellyfin Android TV'],
+        PrerollExcludedClientPatterns: ['Roku'],
         EnableGpuResourceGuard: true,
         GpuIndex: 1,
         GpuCheckTimeoutMilliseconds: 1500,
@@ -144,6 +154,16 @@ export function configB(users) {
         UseStickyMotdMessages: false,
         MotdIncludedClientPatterns: [],
         MotdExcludedClientPatterns: ['Kodi', 'Infuse'],
+        EnablePrerolls: false,
+        PrerollFolder: '/srv/jellyfin/prerolls-b',
+        // 0 is a real value for both: never, and no limit.
+        PrerollChancePercent: 0,
+        PrerollSessionLimit: 0,
+        PrerollOncePerUser: false,
+        PrerollPlayAll: true,
+        PrerollRandom: false,
+        PrerollIncludedClientPatterns: [],
+        PrerollExcludedClientPatterns: ['Kodi', 'Swiftfin'],
         EnableGpuResourceGuard: false,
         GpuIndex: 2,
         GpuCheckTimeoutMilliseconds: 2500,
@@ -168,7 +188,9 @@ export function configB(users) {
 export const TYPED_FOR_B = {
     NvidiaSmiPath: '  /opt/nvidia/bin/nvidia-smi  ',
     IncludedClientPatterns: 'browser\nJellyfin Media Player\nBROWSER',
-    MotdExcludedClientPatterns: 'Kodi, kodi\nInfuse'
+    MotdExcludedClientPatterns: 'Kodi, kodi\nInfuse',
+    PrerollFolder: '  /srv/jellyfin/prerolls-b  ',
+    PrerollExcludedClientPatterns: 'Kodi,\nSwiftfin, swiftfin'
 };
 
 // Every field on the page and the setting it edits, grouped by the tab it lives on. A `toggle`
@@ -184,6 +206,16 @@ export const FIELDS = [
     { tab: 'playback', id: 'chkExcludeLiveTv', prop: 'ExcludeLiveTv', kind: 'checkbox' },
     { tab: 'playback', id: 'txtIncludedClientPatterns', prop: 'IncludedClientPatterns', kind: 'patterns' },
     { tab: 'playback', id: 'txtExcludedClientPatterns', prop: 'ExcludedClientPatterns', kind: 'patterns' },
+
+    { tab: 'prerolls', id: 'txtPrerollFolder', prop: 'PrerollFolder', kind: 'text' },
+    { tab: 'prerolls', id: 'txtPrerollChancePercent', prop: 'PrerollChancePercent', kind: 'number' },
+    { tab: 'prerolls', id: 'txtPrerollSessionLimit', prop: 'PrerollSessionLimit', kind: 'number' },
+    { tab: 'prerolls', id: 'chkPrerollOncePerUser', prop: 'PrerollOncePerUser', kind: 'checkbox' },
+    { tab: 'prerolls', id: 'chkPrerollPlayAll', prop: 'PrerollPlayAll', kind: 'checkbox' },
+    { tab: 'prerolls', id: 'chkPrerollRandom', prop: 'PrerollRandom', kind: 'checkbox' },
+    { tab: 'prerolls', id: 'txtPrerollIncludedClientPatterns', prop: 'PrerollIncludedClientPatterns', kind: 'patterns' },
+    { tab: 'prerolls', id: 'txtPrerollExcludedClientPatterns', prop: 'PrerollExcludedClientPatterns', kind: 'patterns' },
+    { tab: 'prerolls', id: 'chkEnablePrerolls', prop: 'EnablePrerolls', kind: 'toggle', options: 'prerollOptions' },
 
     { tab: 'browser', id: 'txtBrowserInstallUrl', prop: 'BrowserInstallUrl', kind: 'text' },
     { tab: 'browser', id: 'txtBrowserNagTitle', prop: 'BrowserNagTitle', kind: 'text' },
@@ -241,7 +273,7 @@ export const COMPOSITE_SETTINGS = {
     UserConcurrentTranscodeLimits: 'simultaneous'
 };
 
-// The three user exclusion lists, each edited in its own dialog and saved by that dialog.
+// The four user exclusion lists, each edited in its own dialog and saved by that dialog.
 export const EXCLUSION_DIALOGS = [
     {
         prop: 'ExcludedUserIds',
@@ -268,6 +300,19 @@ export const EXCLUSION_DIALOGS = [
         save: 'btnSaveMotdExclusions',
         cancel: 'btnCancelMotdExclusions',
         savedMessage: count => `${count} user(s) excluded from the MOTD.`
+    },
+    {
+        prop: 'PrerollExcludedUserIds',
+        tab: 'prerolls',
+        open: 'btnManagePrerollExclusions',
+        modal: 'prerollUserExclusionModal',
+        list: 'prerollUserExclusionList',
+        selectAll: 'btnPrerollUsersSelectAll',
+        reset: 'btnPrerollUsersResetDefaults',
+        clearAll: 'btnPrerollUsersClearAll',
+        save: 'btnSavePrerollExclusions',
+        cancel: 'btnCancelPrerollExclusions',
+        savedMessage: count => `${count} user(s) excluded from pre-rolls.`
     },
     {
         prop: 'PausedTranscodeExcludedUserIds',

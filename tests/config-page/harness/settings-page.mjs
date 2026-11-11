@@ -8,7 +8,7 @@ const PLUGIN_ID_COMPACT = PLUGIN_ID.replace(/-/g, '');
 // within a few hundred milliseconds; one the browser swallowed never posts at all.
 const SAVE_TIMEOUT_MS = 5000;
 
-export const TABS = ['playback', 'browser', 'login', 'limit', 'simultaneous', 'gpu', 'reaper', 'motd', 'sessions'];
+export const TABS = ['playback', 'prerolls', 'browser', 'login', 'limit', 'simultaneous', 'gpu', 'reaper', 'motd', 'sessions'];
 
 export function harness() {
     const state = JSON.parse(process.env.TRANSCODE_GUARD_HARNESS ?? 'null');

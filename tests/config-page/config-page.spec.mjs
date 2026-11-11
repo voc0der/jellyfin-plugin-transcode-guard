@@ -473,6 +473,7 @@ test.describe('navigation', () => {
 test.describe('tabs', () => {
     const LABELS = {
         playback: 'Playback',
+        prerolls: 'Pre-rolls',
         browser: 'Browser Warning',
         login: 'Login Nag',
         limit: 'Transcode Limit',
@@ -509,8 +510,8 @@ test.describe('tabs', () => {
 
         await tabButton(page, 'playback').focus();
         await page.keyboard.press('ArrowRight');
-        await expect(tabButton(page, 'browser')).toBeFocused();
-        await expect(tabPanel(page, 'browser')).toBeVisible();
+        await expect(tabButton(page, TABS[1])).toBeFocused();
+        await expect(tabPanel(page, TABS[1])).toBeVisible();
         await page.keyboard.press('ArrowLeft');
         await page.keyboard.press('ArrowLeft');
         await expect(tabButton(page, 'sessions'), 'wraps from the first tab to the last').toBeFocused();
