@@ -144,6 +144,52 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public int BrowserNagAutoCloseSeconds { get; set; } = 60;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether videos from <see cref="PrerollFolder"/> are offered
+    /// as intros before playback. Off by default so upgrading the plugin changes nothing.
+    /// </summary>
+    public bool EnablePrerolls { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the server folder the pre-rolls are read from. Files play in file-name order,
+    /// and the folder is re-read on every playback, so added or removed files take effect at once.
+    /// </summary>
+    public string PrerollFolder { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the chance, 0-100, that a playback gets pre-rolls at all.
+    /// </summary>
+    public int PrerollChancePercent { get; set; } = 100;
+
+    /// <summary>
+    /// Gets or sets how many times one session gets pre-rolls. Below 1 means no limit.
+    /// </summary>
+    public int PrerollSessionLimit { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a pre-roll stops playing for a user once they have
+    /// seen it, meaning they started it at least once.
+    /// </summary>
+    public bool PrerollOncePerUser { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether every eligible pre-roll plays back to back, in
+    /// file-name order, instead of just one.
+    /// </summary>
+    public bool PrerollPlayAll { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the pre-roll is picked at random (or, with
+    /// <see cref="PrerollPlayAll"/>, the order is shuffled) instead of following file-name order.
+    /// </summary>
+    public bool PrerollRandom { get; set; } = false;
+
+    public string[] PrerollIncludedClientPatterns { get; set; } = Array.Empty<string>();
+
+    public string[] PrerollExcludedClientPatterns { get; set; } = Array.Empty<string>();
+
+    public string[] PrerollExcludedUserIds { get; set; } = Array.Empty<string>();
+
     public string[] AlertTranscodeReasons { get; set; } = GetDefaultAlertTranscodeReasons();
 
     public ReasonMessageOverride[] ReasonMessageOverrides { get; set; } = Array.Empty<ReasonMessageOverride>();
