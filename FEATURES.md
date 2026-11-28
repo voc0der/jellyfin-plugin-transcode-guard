@@ -196,7 +196,15 @@ and client exclusion are the login nag's. One policy, two points on it.
 | Setting | Does | Default |
 | --- | --- | --- |
 | Transcode Limit | Bad transcodes before refusing | 10 |
+| Blocked Playback Clip | Choose a video file on the Jellyfin server to play when this limit refuses a request | Empty |
 | Blocked Title / Blocked Message | The popup. Supports `{{transcodes}}`, `{{timewindow}}`, `{{limit}}`. Also the text of the [browser install warning](#browser-install-warning) when a browser is blocked | "Transcode limit reached" |
+
+With a clip selected, Jellyfin replaces the blocked device's queue with that one video.
+Playback ends when the clip finishes. Cinema mode is optional. If the file is in the
+cinema pre-roll folder, Transcode Guard reserves it for refusals while the limit is on.
+Use a clip your clients can direct play, such as an MP4 with H.264 video and AAC audio.
+If the file is missing or the client cannot receive a remote play command, the guard
+uses the blocked message.
 
 **What it never refuses.** Only what the login nag counts. Direct play, direct
 stream, bitrate-only transcodes, audio-only streams, excluded users, filtered

@@ -10,7 +10,7 @@ import {
     configA,
     configB
 } from './harness/fixtures.mjs';
-import { PLUGIN_ID, REPO_ROOT } from './harness/jellyfin.mjs';
+import { PLUGIN_ID, REPO_ROOT, createPickerClip } from './harness/jellyfin.mjs';
 import {
     TABS,
     collectPageErrors,
@@ -300,6 +300,21 @@ test.describe('saving', () => {
 });
 
 test.describe('buttons', () => {
+    test('a limit clip can be selected on the server and cleared', async ({ page }) => {
+        const path = await createPickerClip();
+        const a = await seed({ ...configA(harness().users), TranscodeLimitClipPath: '/tmp/old.mp4' });
+        await openSettings(page, a);
+        await showTab(page, 'limit');
+        await field(page, 'btnBrowseTranscodeLimitClip').click();
+        const picker = page.locator('.directoryPicker');
+        await picker.locator(`.lnkFile[data-path="${path}"]`).click();
+        await picker.locator('button[type="submit"]').click();
+        await expect(field(page, 'txtTranscodeLimitClipPath')).toHaveValue(path);
+        expect((await save(page)).TranscodeLimitClipPath).toBe(path);
+        await field(page, 'txtTranscodeLimitClipPath').fill('');
+        expect((await save(page)).TranscodeLimitClipPath).toBe('');
+    });
+
     test('each feature switch shows and hides its settings', async ({ page }) => {
         const a = await seed(configA(harness().users));
         await openSettings(page, a);

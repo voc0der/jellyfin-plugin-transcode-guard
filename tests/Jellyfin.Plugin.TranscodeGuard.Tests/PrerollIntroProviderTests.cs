@@ -14,6 +14,7 @@ using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.IO;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using AudioItem = MediaBrowser.Controller.Entities.Audio.Audio;
 
 namespace Jellyfin.Plugin.TranscodeGuard.Tests;
@@ -270,6 +271,18 @@ public sealed class PrerollIntroProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task TheLimitClipIsReservedForRefusalsAndNeverGetsCinemaIntros()
+    {
+        _config.EnableTranscodeLimit = true;
+        _config.PrerollPlayAll = true;
+        _config.TranscodeLimitClipPath = Path.Join(_folder, "01-welcome.mp4");
+        Assert.Equal(new[] { "02-rules.mp4" }, await IntroFileNamesAsync());
+
+        _config.TranscodeLimitClipPath = Path.Join(_root, "limit.mp4");
+        Assert.Empty(await IntroFileNamesAsync(new Video { Path = _config.TranscodeLimitClipPath }));
+    }
+
+    [Fact]
     public async Task ExcludedUsersGetNothing()
     {
         _config.PrerollExcludedUserIds = new[] { _user.Id.ToString("N") };
@@ -370,10 +383,8 @@ public sealed class PrerollIntroProviderTests : IDisposable
     private PrerollIntroProvider CreateProvider(IHttpContextAccessor? httpContextAccessor)
     {
         return new PrerollIntroProvider(
-            _library,
+            new PrerollVideos(_library, _providerManager, _fileSystem, (ISessionManager)(object)_sessions, NullLogger<PrerollVideos>.Instance),
             _userDataManager,
-            _providerManager,
-            _fileSystem,
             (ISessionManager)(object)_sessions,
             _authorization,
             _logger,

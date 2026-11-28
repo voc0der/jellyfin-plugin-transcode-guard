@@ -224,6 +224,7 @@ public sealed class GuardedTranscodeManager : ITranscodeManager, IDisposable
             // Both signals, because either alone is narrower than the Live TV the counter skips.
             IsLiveStream = state.MediaSource?.IsInfiniteStream == true
                 || !string.IsNullOrEmpty(state.MediaSource?.LiveStreamId),
+            MediaPath = state.MediaSource?.Path,
             DeviceId = request?.DeviceId,
             PlaySessionId = request?.PlaySessionId,
             UserId = userId,

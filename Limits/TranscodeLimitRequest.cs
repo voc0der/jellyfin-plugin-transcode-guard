@@ -41,6 +41,11 @@ public sealed class TranscodeLimitRequest
     public bool IsLiveStream { get; set; }
 
     /// <summary>
+    /// Gets or sets the server-resolved media path used to recognize the limit clip.
+    /// </summary>
+    public string? MediaPath { get; set; }
+
+    /// <summary>
     /// Gets or sets the requesting device ID. The correlation key for the client message.
     /// </summary>
     public string? DeviceId { get; set; }

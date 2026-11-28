@@ -6,6 +6,7 @@ using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Gpu;
 using Jellyfin.Plugin.TranscodeGuard.Limits;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Prerolls;
 using Jellyfin.Plugin.TranscodeGuard.Sessions;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.MediaEncoding;
@@ -32,6 +33,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // One store instance, so the reader in front of FFmpeg and the writer behind playback
         // events share its lock rather than racing each other over the same file.
         serviceCollection.AddSingleton<TranscodeEventStore>();
+        serviceCollection.AddSingleton<PrerollVideos>();
         serviceCollection.AddSingleton<TranscodeLimitGuard>();
         serviceCollection.AddSingleton<ConcurrentTranscodeGuard>();
         serviceCollection.AddHostedService<PlaybackMonitor>();

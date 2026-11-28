@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
@@ -9,9 +8,7 @@ using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
-using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.Session;
-using MediaBrowser.Model.IO;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -31,10 +28,8 @@ namespace Jellyfin.Plugin.TranscodeGuard.Prerolls;
 /// </remarks>
 public sealed class PrerollIntroProvider : IIntroProvider, IDisposable
 {
-    private readonly ILibraryManager _libraryManager;
+    private readonly PrerollVideos _videos;
     private readonly IUserDataManager _userDataManager;
-    private readonly IProviderManager _providerManager;
-    private readonly IFileSystem _fileSystem;
     private readonly ISessionManager _sessionManager;
     private readonly IAuthorizationContext _authorizationContext;
     private readonly IHttpContextAccessor? _httpContextAccessor;
@@ -42,19 +37,15 @@ public sealed class PrerollIntroProvider : IIntroProvider, IDisposable
     private readonly PrerollSessionCounter _sessions = new();
 
     public PrerollIntroProvider(
-        ILibraryManager libraryManager,
+        PrerollVideos videos,
         IUserDataManager userDataManager,
-        IProviderManager providerManager,
-        IFileSystem fileSystem,
         ISessionManager sessionManager,
         IAuthorizationContext authorizationContext,
         ILogger<PrerollIntroProvider> logger,
         IHttpContextAccessor? httpContextAccessor = null)
     {
-        _libraryManager = libraryManager;
+        _videos = videos;
         _userDataManager = userDataManager;
-        _providerManager = providerManager;
-        _fileSystem = fileSystem;
         _sessionManager = sessionManager;
         _authorizationContext = authorizationContext;
         _httpContextAccessor = httpContextAccessor;
@@ -93,7 +84,8 @@ public sealed class PrerollIntroProvider : IIntroProvider, IDisposable
             return Array.Empty<IntroInfo>();
         }
 
-        if (item.MediaType != MediaType.Video || PrerollRules.IsInFolder(item.Path, config.PrerollFolder))
+        if (item.MediaType != MediaType.Video || PrerollRules.IsInFolder(item.Path, config.PrerollFolder)
+            || PrerollRules.IsLimitClip(item.Path, config))
         {
             return Array.Empty<IntroInfo>();
         }
@@ -126,8 +118,8 @@ public sealed class PrerollIntroProvider : IIntroProvider, IDisposable
         }
 
         var candidates = PrerollRules.ListPrerollFiles(config.PrerollFolder)
-            .Select(GetOrCreateItem)
-            .OfType<Video>()
+            .Where(path => !PrerollRules.IsLimitClip(path, config))
+            .Select(_videos.GetOrCreateItem)
             .Where(video => video.IsVisibleStandalone(user))
             .Select(video => ToCandidate(user, video))
             .ToList();
@@ -165,57 +157,6 @@ public sealed class PrerollIntroProvider : IIntroProvider, IDisposable
             video.Id,
             Seen: data != null && (data.PlayCount > 0 || data.Played),
             LastSeen: data?.LastPlayedDate);
-    }
-
-    private Video? GetOrCreateItem(string path)
-    {
-        var id = _libraryManager.GetNewItemId(path, typeof(Video));
-        var lastWrite = File.GetLastWriteTimeUtc(path);
-
-        if (_libraryManager.GetItemById(id) is Video existing)
-        {
-            // A file replaced under the same name needs probing again, or clients get the old
-            // file's runtime and streams.
-            if (Math.Abs((existing.DateModified - lastWrite).TotalSeconds) > 1)
-            {
-                existing.DateModified = lastWrite;
-                QueueProbe(existing.Id);
-            }
-
-            return existing;
-        }
-
-        var video = new Video
-        {
-            Id = id,
-            Path = path,
-            Name = Path.GetFileNameWithoutExtension(path),
-            DateCreated = DateTime.UtcNow,
-            DateModified = lastWrite
-        };
-
-        _libraryManager.CreateItem(video, null);
-
-        // Probing in the background is enough: if a client asks to play the item before the
-        // probe lands, Jellyfin probes it on the spot.
-        QueueProbe(id);
-        _logger.LogInformation("Registered pre-roll {Path}", path);
-        return video;
-    }
-
-    private void QueueProbe(Guid id)
-    {
-        _providerManager.QueueRefresh(
-            id,
-            new MetadataRefreshOptions(new DirectoryService(_fileSystem))
-            {
-                MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
-
-                // Nothing shows a pre-roll's artwork, and grabbing a frame from a short clip
-                // only fills the log with screen-grabber errors.
-                ImageRefreshMode = MetadataRefreshMode.ValidationOnly
-            },
-            RefreshPriority.High);
     }
 
     private async Task<AuthorizationInfo?> GetRequestAuthorizationAsync()
