@@ -86,6 +86,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public string TranscodeLimitMessage { get; set; } = "You've transcoded {{transcodes}} videos in the last {{timewindow}} due to unsupported formats, which is over this server's limit of {{limit}}. Switch to a client that can direct play (mpv, VLC, or Jellyfin Media Player) to keep watching.";
 
+    /// <summary>
+    /// Gets or sets the server video file to play as the entire queue after a transcode limit refusal.
+    /// An empty path uses the blocked message.
+    /// </summary>
+    public string TranscodeLimitClipPath { get; set; } = string.Empty;
+
     public bool UseStickyTranscodeLimitMessages { get; set; } = false;
 
     /// <summary>

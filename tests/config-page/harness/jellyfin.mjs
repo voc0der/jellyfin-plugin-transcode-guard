@@ -143,6 +143,13 @@ export async function stopJellyfin({ logPath } = {}) {
     await docker('rm', '-f', '-v', CONTAINER).catch(() => {});
 }
 
+// The file picker only needs a server-side directory entry. The container owns its lifetime.
+export async function createPickerClip() {
+    const path = '/tmp/transcode-limit-clip.mp4';
+    await docker('exec', CONTAINER, 'touch', path);
+    return path;
+}
+
 export async function startJellyfin(dll) {
     await stopJellyfin();
 

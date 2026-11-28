@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Jellyfin.Plugin.TranscodeGuard.Configuration;
 
 namespace Jellyfin.Plugin.TranscodeGuard.Prerolls;
 
@@ -27,6 +28,26 @@ internal static class PrerollRules
     internal static bool IsVideoFile(string? path)
     {
         return !string.IsNullOrEmpty(path) && VideoExtensions.Contains(Path.GetExtension(path));
+    }
+
+    internal static bool IsLimitClip(string? path, PluginConfiguration config)
+    {
+        var configured = config.TranscodeLimitClipPath?.Trim();
+        if (!config.EnableTranscodeLimit || string.IsNullOrEmpty(path) || string.IsNullOrEmpty(configured)
+            || !Path.IsPathFullyQualified(configured) || !IsVideoFile(configured))
+        {
+            return false;
+        }
+
+        try
+        {
+            return string.Equals(path, Path.GetFullPath(configured),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

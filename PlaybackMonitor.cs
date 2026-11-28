@@ -218,7 +218,8 @@ public class PlaybackMonitor : IHostedService
             var config = Plugin.Instance.Configuration;
 
             // A pre-roll is the server's pick, not the user's, so it is never nagged about or counted.
-            if (config.EnablePrerolls && Prerolls.PrerollRules.IsInFolder(e.Item?.Path, config.PrerollFolder))
+            if (Prerolls.PrerollRules.IsLimitClip(e.Item?.Path, config)
+                || (config.EnablePrerolls && Prerolls.PrerollRules.IsInFolder(e.Item?.Path, config.PrerollFolder)))
             {
                 return;
             }
@@ -226,9 +227,11 @@ public class PlaybackMonitor : IHostedService
             // Wait for transcoding info to be available
             await Task.Delay(config.DelaySeconds * 1000).ConfigureAwait(false);
 
-            // Re-fetch session to get updated transcoding info
+            // Use the updated transcoding info only if the same item is still playing.
+            // A limit clip can replace the refused item during the delay.
             var session = _sessionManager.Sessions.FirstOrDefault(s => s.Id == e.Session.Id);
-            if (session == null || session.NowPlayingItem == null)
+            if (session?.NowPlayingItem == null
+                || (e.Item != null && e.Item.Id != Guid.Empty && e.Item.Id != session.NowPlayingItem.Id))
             {
                 return;
             }

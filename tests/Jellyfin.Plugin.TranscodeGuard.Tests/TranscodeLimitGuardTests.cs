@@ -2,8 +2,13 @@ using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using Jellyfin.Plugin.TranscodeGuard.Limits;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Prerolls;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.IO;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -59,6 +64,75 @@ public class TranscodeLimitGuardTests
         var sent = Assert.Single(harness.Messages.SentMessages);
         Assert.Equal("Stop", sent.Command.Header);
         Assert.Equal("10 of 10 this week.", sent.Command.Text);
+    }
+
+    [Theory]
+    [InlineData(true, true, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public async Task LimitClipReplacesOnlyTheRefusedQueueOrFallsBackToTheMessage(
+        bool supportsControl, bool fileExists, bool sendFails)
+    {
+        var path = Path.Join(Path.GetTempPath(), Guid.NewGuid() + ".mp4");
+        using var file = fileExists ? File.Create(path, 4096, FileOptions.DeleteOnClose) : null;
+
+        var clip = new Video { Id = Guid.NewGuid(), Path = path, DateModified = File.GetLastWriteTimeUtc(path) };
+        var library = ScriptedProxy.Create<ILibraryManager>(out var libraryScript);
+        libraryScript.Handlers["GetNewItemId"] = args =>
+        {
+            Assert.Equal(path, args[0]);
+            return clip.Id;
+        };
+        libraryScript.Handlers["GetItemById"] = _ => clip;
+        var manager = ScriptedProxy.Create<ISessionManager>(out var sessionScript);
+        var plays = new List<(string SessionId, PlayRequest Command)>();
+        sessionScript.Handlers["SendPlayCommand"] = args =>
+        {
+            plays.Add(((string)args[1]!, (PlayRequest)args[2]!));
+            return sendFails ? Task.FromException(new IOException("connection closed")) : Task.CompletedTask;
+        };
+
+        var videos = new PrerollVideos(library, ScriptedProxy.Create<IProviderManager>(out _),
+            ScriptedProxy.Create<IFileSystem>(out _), manager, NullLogger<PrerollVideos>.Instance);
+        var config = EnabledConfig(threshold: 1);
+        config.TranscodeLimitClipPath = path;
+        var now = DateTimeOffset.UtcNow;
+        using var harness = new LimitHarness(config, () => now, videos: videos);
+        harness.Session.Capabilities = new ClientCapabilities { SupportsMediaControl = supportsControl };
+        harness.Session.AddController(new ActiveSessionController());
+
+        Assert.True((await harness.AssessAsync(Request())).IsAdmitted);
+        Assert.Empty(plays);
+        await harness.RecordBadTranscodesAsync(AliceId, 1);
+        now = now.AddSeconds(10);
+        Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
+        Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
+
+        if (supportsControl && fileExists)
+        {
+            var play = Assert.Single(plays);
+            Assert.Equal(harness.Session.Id, play.SessionId);
+            Assert.Equal(PlayCommand.PlayNow, play.Command.PlayCommand);
+            Assert.Equal(clip.Id, Assert.Single(play.Command.ItemIds));
+            Assert.Equal(0L, play.Command.StartPositionTicks);
+            if (!sendFails)
+            {
+                harness.SetNowPlaying(clip.Id);
+                now = now.AddSeconds(10);
+                Assert.False((await harness.AssessAsync(Request())).IsAdmitted);
+                Assert.Single(plays);
+            }
+        }
+        else
+        {
+            Assert.Empty(plays);
+        }
+
+        Assert.Equal(supportsControl && fileExists && !sendFails ? 0 : 1, harness.Messages.SentMessages.Count);
+        var clipRequest = Request(itemId: clip.Id);
+        clipRequest.MediaPath = path;
+        Assert.True((await harness.AssessAsync(clipRequest)).IsAdmitted);
     }
 
     [Fact]
@@ -403,7 +477,8 @@ public class TranscodeLimitGuardTests
         public LimitHarness(
             PluginConfiguration config,
             Func<DateTimeOffset>? clock = null,
-            IClientMessageService? messages = null)
+            IClientMessageService? messages = null,
+            PrerollVideos? videos = null)
         {
             Messages = new RecordingClientMessageService();
             Messages.AddSession(_session);
@@ -415,7 +490,7 @@ public class TranscodeLimitGuardTests
                 () => config,
                 TimeSpan.FromSeconds(5),
                 TimeSpan.FromSeconds(3),
-                clock ?? (() => DateTimeOffset.UtcNow));
+                clock ?? (() => DateTimeOffset.UtcNow), videos);
         }
 
         public RecordingClientMessageService Messages { get; }

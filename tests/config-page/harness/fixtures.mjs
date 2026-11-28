@@ -44,6 +44,7 @@ export function configA(users) {
         UseStickyLoginNagMessages: false,
         EnableTranscodeLimit: true,
         TranscodeLimitThreshold: 12,
+        TranscodeLimitClipPath: '/media/limit-a.mp4',
         TranscodeLimitHeader: 'Harness A limit title',
         TranscodeLimitMessage: 'Harness A: over the limit of {{limit}}.',
         UseStickyTranscodeLimitMessages: true,
@@ -123,6 +124,7 @@ export function configB(users) {
         UseStickyLoginNagMessages: true,
         EnableTranscodeLimit: false,
         TranscodeLimitThreshold: 20,
+        TranscodeLimitClipPath: '/media/limit-b.mp4',
         TranscodeLimitHeader: 'Harness B limit title',
         TranscodeLimitMessage: 'Harness B: limit {{limit}} reached.',
         UseStickyTranscodeLimitMessages: false,
@@ -189,6 +191,7 @@ export const TYPED_FOR_B = {
     NvidiaSmiPath: '  /opt/nvidia/bin/nvidia-smi  ',
     IncludedClientPatterns: 'browser\nJellyfin Media Player\nBROWSER',
     MotdExcludedClientPatterns: 'Kodi, kodi\nInfuse',
+    TranscodeLimitClipPath: '  /media/limit-b.mp4  ',
     PrerollFolder: '  /srv/jellyfin/prerolls-b  ',
     PrerollExcludedClientPatterns: 'Kodi,\nSwiftfin, swiftfin'
 };
@@ -231,6 +234,7 @@ export const FIELDS = [
     { tab: 'login', id: 'chkEnableLoginNag', prop: 'EnableLoginNag', kind: 'checkbox' },
 
     { tab: 'limit', id: 'txtTranscodeLimitThreshold', prop: 'TranscodeLimitThreshold', kind: 'number' },
+    { tab: 'limit', id: 'txtTranscodeLimitClipPath', prop: 'TranscodeLimitClipPath', kind: 'text' },
     { tab: 'limit', id: 'txtTranscodeLimitHeader', prop: 'TranscodeLimitHeader', kind: 'text' },
     { tab: 'limit', id: 'txtTranscodeLimitMessage', prop: 'TranscodeLimitMessage', kind: 'text' },
     { tab: 'limit', id: 'chkUseStickyTranscodeLimitMessages', prop: 'UseStickyTranscodeLimitMessages', kind: 'checkbox' },

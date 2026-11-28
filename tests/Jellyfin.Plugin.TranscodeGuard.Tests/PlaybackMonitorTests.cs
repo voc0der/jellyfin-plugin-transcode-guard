@@ -80,6 +80,23 @@ public sealed class PlaybackMonitorTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheLimitClipDoesNotRecordATranscodeOrAnImprovementCredit()
+    {
+        _config.EnableTranscodeLimit = true;
+        _config.TranscodeLimitClipPath = Path.Join(_pluginPath, "limit.mp4");
+        var started = new PlaybackProgressEventArgs
+        {
+            Session = _session,
+            Item = new Video { Path = _config.TranscodeLimitClipPath }
+        };
+        await _sessions.RaiseAsync(nameof(ISessionManager.PlaybackStart), started);
+        _session.TranscodingInfo = null;
+        await _sessions.RaiseAsync(nameof(ISessionManager.PlaybackStart), started);
+        Assert.Empty(_messages.Deliveries);
+        Assert.Empty(await UserEventsAsync());
+    }
+
+    [Fact]
     public async Task Stop_UnsubscribesEveryHandler()
     {
         Assert.Equal(4, _sessions.SubscriberCount);

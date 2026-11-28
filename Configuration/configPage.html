@@ -357,8 +357,8 @@
                         <h2>Transcode Limit</h2>
                         <div class="fieldDescription" style="margin-bottom: 12px;">
                             Turns the login nag's count into a hard stop. A user at or over this limit has their
-                            next transcode refused before FFmpeg starts, and is shown the message below. Set it
-                            higher than the Login Nag Threshold so users are warned before they are stopped.
+                            next transcode refused before FFmpeg starts. Set the limit higher than the Login Nag
+                            Threshold so users are warned before they are stopped.
                             Counted exactly like the login nag: same time window, same trigger reasons, same user
                             and client exclusions. Bitrate-only transcodes, audio-only streams, and direct play
                             are never refused, so a user who is over the limit can still watch anything their
@@ -370,7 +370,7 @@
                                 <input type="checkbox" is="emby-checkbox" id="chkEnableTranscodeLimit" name="chkEnableTranscodeLimit" />
                                 <span>Block transcodes once the limit is reached</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">Off by default. Playback fails for the user with the message below instead of only nagging them.</div>
+                            <div class="fieldDescription checkboxFieldDescription">Off by default. Blocked users receive the clip or message configured here.</div>
                         </div>
 
                         <div id="transcodeLimitOptions" data-feature-switch="chkEnableTranscodeLimit" style="display: none;">
@@ -378,6 +378,13 @@
                                 <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitThreshold">Transcode Limit:</label>
                                 <input type="number" id="txtTranscodeLimitThreshold" name="txtTranscodeLimitThreshold" min="1" max="1000" class="emby-input" />
                                 <div class="fieldDescription">Refuse a transcode once the user has this many in the Login Nag Time Window.</div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="txtTranscodeLimitClipPath">Blocked Playback Clip:</label>
+                                <input type="text" id="txtTranscodeLimitClipPath" class="emby-input" aria-describedby="transcodeLimitClipHelp" />
+                                <button is="emby-button" type="button" id="btnBrowseTranscodeLimitClip" class="raised">Browse</button>
+                                <div id="transcodeLimitClipHelp" class="fieldDescription">Choose a video file on the server to replace the blocked device's queue. Playback ends after the clip. Leave empty to use the blocked message. Clients without remote playback support also get the message.</div>
                             </div>
 
                             <div class="inputContainer">
@@ -1695,6 +1702,21 @@
                 }
             };
 
+            document.getElementById('btnBrowseTranscodeLimitClip').addEventListener('click', function () {
+                var input = document.getElementById('txtTranscodeLimitClipPath');
+                var picker = new Dashboard.DirectoryBrowser();
+                var current = input.value.trim();
+                picker.show({
+                    includeFiles: true,
+                    path: current.slice(0, Math.max(current.lastIndexOf('/'), current.lastIndexOf('\\')) + 1),
+                    header: 'Select a blocked playback clip',
+                    callback: function (path) {
+                        input.value = path;
+                        picker.close();
+                    }
+                });
+            });
+
             document.getElementById('TranscodeGuardConfigPage').addEventListener('pageshow', function () {
                 Dashboard.showLoadingMsg();
                 SettingsTabs.init();
@@ -1724,6 +1746,7 @@
                     document.getElementById('chkUseStickyLoginNagMessages').checked = config.UseStickyLoginNagMessages === true;
                     document.getElementById('chkEnableTranscodeLimit').checked = config.EnableTranscodeLimit === true;
                     document.getElementById('txtTranscodeLimitThreshold').value = config.TranscodeLimitThreshold || 10;
+                    document.getElementById('txtTranscodeLimitClipPath').value = config.TranscodeLimitClipPath || '';
                     document.getElementById('txtTranscodeLimitHeader').value = config.TranscodeLimitHeader || '';
                     document.getElementById('txtTranscodeLimitMessage').value = config.TranscodeLimitMessage || '';
                     document.getElementById('chkUseStickyTranscodeLimitMessages').checked = config.UseStickyTranscodeLimitMessages === true;
@@ -1812,6 +1835,7 @@
                     config.UseStickyLoginNagMessages = document.getElementById('chkUseStickyLoginNagMessages').checked;
                     config.EnableTranscodeLimit = document.getElementById('chkEnableTranscodeLimit').checked;
                     config.TranscodeLimitThreshold = TranscodeLimitSection.readNumber('txtTranscodeLimitThreshold', 10);
+                    config.TranscodeLimitClipPath = document.getElementById('txtTranscodeLimitClipPath').value.trim();
                     config.TranscodeLimitHeader = document.getElementById('txtTranscodeLimitHeader').value;
                     config.TranscodeLimitMessage = document.getElementById('txtTranscodeLimitMessage').value;
                     config.UseStickyTranscodeLimitMessages = document.getElementById('chkUseStickyTranscodeLimitMessages').checked;

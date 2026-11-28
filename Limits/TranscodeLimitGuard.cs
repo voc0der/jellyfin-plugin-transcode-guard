@@ -9,6 +9,7 @@ using Jellyfin.Plugin.TranscodeGuard.Browser;
 using Jellyfin.Plugin.TranscodeGuard.Configuration;
 using Jellyfin.Plugin.TranscodeGuard.Data;
 using Jellyfin.Plugin.TranscodeGuard.Messaging;
+using Jellyfin.Plugin.TranscodeGuard.Prerolls;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Logging;
@@ -51,6 +52,7 @@ public sealed class TranscodeLimitGuard
     private const string DefaultDeniedHeader = "Transcode limit reached";
     private const string DefaultDeniedMessage = "You have reached this server's transcoding limit. Switch to a client that can direct play to keep watching.";
 
+    private readonly PrerollVideos? _videos;
     private readonly TranscodeEventStore _eventStore;
     private readonly IClientMessageService _clientMessageService;
     private readonly ILogger<TranscodeLimitGuard> _logger;
@@ -71,8 +73,9 @@ public sealed class TranscodeLimitGuard
     public TranscodeLimitGuard(
         TranscodeEventStore eventStore,
         IClientMessageService clientMessageService,
-        ILogger<TranscodeLimitGuard> logger)
-        : this(eventStore, clientMessageService, logger, () => Plugin.Instance?.Configuration)
+        ILogger<TranscodeLimitGuard> logger,
+        PrerollVideos videos)
+        : this(eventStore, clientMessageService, logger, () => Plugin.Instance?.Configuration, videos)
     {
     }
 
@@ -80,7 +83,8 @@ public sealed class TranscodeLimitGuard
         TranscodeEventStore eventStore,
         IClientMessageService clientMessageService,
         ILogger<TranscodeLimitGuard> logger,
-        Func<PluginConfiguration?> configurationAccessor)
+        Func<PluginConfiguration?> configurationAccessor,
+        PrerollVideos? videos = null)
         : this(
             eventStore,
             clientMessageService,
@@ -88,7 +92,7 @@ public sealed class TranscodeLimitGuard
             configurationAccessor,
             DefaultCountCacheLifetime,
             DefaultNotificationQuietPeriod,
-            () => DateTimeOffset.UtcNow)
+            () => DateTimeOffset.UtcNow, videos)
     {
     }
 
@@ -99,8 +103,10 @@ public sealed class TranscodeLimitGuard
         Func<PluginConfiguration?> configurationAccessor,
         TimeSpan countCacheLifetime,
         TimeSpan notificationQuietPeriod,
-        Func<DateTimeOffset> clock)
+        Func<DateTimeOffset> clock,
+        PrerollVideos? videos = null)
     {
+        _videos = videos;
         _eventStore = eventStore;
         _clientMessageService = clientMessageService;
         _logger = logger;
@@ -157,6 +163,7 @@ public sealed class TranscodeLimitGuard
         // Only what the login nag counts is refused: audio-only streams and bitrate-driven
         // transcodes never counted toward the limit, so they must not be stopped by it.
         if (!request.IsVideoRequest
+            || PrerollRules.IsLimitClip(request.MediaPath, config)
             || !TranscodeGuardRules.MatchesConfiguredNagReasons(request.TranscodeReasons, config))
         {
             return TranscodeLimitDecision.Allowed;
@@ -325,7 +332,7 @@ public sealed class TranscodeLimitGuard
 
         if (!notify)
         {
-            // Still refused - only the popup and the warning are de-duplicated.
+            // Retries keep the refusal without restarting the clip or repeating the message.
             BestEffort(() => _logger.LogDebug(
                 "Transcode blocked again for item {ItemName} within the notification suppression window",
                 request.ItemName ?? "Unknown"));
@@ -348,6 +355,25 @@ public sealed class TranscodeLimitGuard
                 "No session could be correlated to the blocked transcode of {ItemName}; the refusal still stands",
                 request.ItemName ?? "Unknown"));
             return;
+        }
+
+        // A popup may use a user-only session match. Replacing a queue requires the device
+        // that actually made the request, so another screen can never be interrupted.
+        var clipPath = config.TranscodeLimitClipPath?.Trim();
+        if (!string.IsNullOrEmpty(clipPath) && _videos != null && !string.IsNullOrEmpty(request.DeviceId)
+            && string.Equals(session.DeviceId, request.DeviceId, StringComparison.Ordinal))
+        {
+            try
+            {
+                if (await _videos.TryPlayLimitClipAsync(clipPath, session, cancellationToken).ConfigureAwait(false))
+                {
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                _logger.LogWarning(ex, "Could not play transcode limit clip {Path} on {Device}; sending the blocked message", clipPath, request.DeviceId);
+            }
         }
 
         // An admin who blanks these fields should still get a usable popup.
